@@ -1,4 +1,4 @@
-module github.com/leighmacdonald/steam-webapi
+module github.com/leighmacdonald/steamweb
 
 go 1.16
 

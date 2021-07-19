@@ -32,7 +32,7 @@ func TestGetAppList(t *testing.T) {
 }
 
 func TestPlayerSummaries(t *testing.T) {
-	ids := []steamid.SID64{76561198132612090, testIDSquirrelly, 76561197960435530}
+	ids := steamid.Collection{76561198132612090, testIDSquirrelly, 76561197960435530}
 	p, err := PlayerSummaries(ids)
 	require.NoError(t, err)
 	require.Equal(t, len(ids), len(p))
