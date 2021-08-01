@@ -10,7 +10,47 @@
 
 A golang library for querying the [steam webapi](https://wiki.teamfortress.com/wiki/WebAPI).
 
+## Endpoints
+
+- [x] ISteamApps
+    - [x] GetAppList
+    - [x] GetServersAtAddress
+    - [x] UpToDateCheck
+
+- [x] ISteamEconomy
+    - GetAssetClassInfo
+    - GetAssetPrices
+
+- [x] ISteamNews
+    - GetNewsForApp
+
+- [x] ISteamUser
+    - GetFriendList
+    - GetPlayerBans
+    - GetPlayerSummaries
+    - GetUserGroupList
+    - ResolveVanityURL
+
+- [x] IPlayerService
+    - GetRecentlyPlayedGames
+    - GetOwnedGames
+    - GetSteamLevel
+    - GetBadges
+    - GetCommunityBadgeProgress
     
+- [x] ISteamWebAPIUtil
+    - GetServerInfo
+    - GetSupportedAPIList
+
+- [ ] IEconItems_<AppID>
+    - [x] GetPlayerItems
+    - [x] GetSchema
+    - [x] GetSchemaURL
+    - [x] GetStoreMetadata
+    - [ ] GetStoreStatus
+    
+## Example Usage
+
     import (
         "fmt"
         "github.com/leighmacdonald/steamweb"
