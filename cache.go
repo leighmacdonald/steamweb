@@ -1,4 +1,4 @@
-package steam_webapi
+package steamweb
 
 import (
 	"sync"

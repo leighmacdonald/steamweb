@@ -1,4 +1,4 @@
-// Package steam_webapi provides some basic binding for accessing the steam web api
+// Package steamweb provides some basic binding for accessing the steam web api
 //
 // To properly use this package you must first set a steam api key it can use to authenticate
 // with the API. You can obtain a key here https://steamcommunity.com/dev/apikey
@@ -7,7 +7,7 @@
 //
 // Some results are cached due to being static content that does not need to be updated frequently. These include:
 // GetAppList, GetStoreMetaData, GetSchemaURL, GetSchemaOverview, GetSchemaItems, GetSupportedAPIList
-package steam_webapi
+package steamweb
 
 import (
 	"context"
