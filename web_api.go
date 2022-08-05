@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -1136,4 +1137,34 @@ func GetAssetClassInfo(appID steamid.AppID, classIds []int) ([]Asset, error) {
 		assets = append(assets, s)
 	}
 	return assets, nil
+}
+
+func GetGroupMembers(ctx context.Context, groupId steamid.GID) (steamid.Collection, error) {
+	rx := regexp.MustCompile(`<steamID64>(\d+)</steamID64>`)
+	if !groupId.Valid() {
+		return nil, errors.New("Invalid steam group ID")
+	}
+	lCtx, cancel := context.WithTimeout(ctx, time.Second*20)
+	defer cancel()
+	req, reqErr := http.NewRequestWithContext(lCtx, "GET", fmt.Sprintf("https://steamcommunity.com/gid/%d/memberslistxml/?xml=1", groupId), nil)
+	if reqErr != nil {
+		return nil, errors.Wrapf(reqErr, "Failed to create request")
+	}
+	resp, respErr := httpClient.Do(req)
+	if respErr != nil {
+		return nil, errors.Wrapf(reqErr, "Failed to perform request")
+	}
+	body, bodyErr := ioutil.ReadAll(resp.Body)
+	if bodyErr != nil {
+		return nil, errors.Wrapf(reqErr, "Failed to read response body")
+	}
+	var found steamid.Collection
+	for _, match := range rx.FindAllStringSubmatch(string(body), -1) {
+		sid, errSid := steamid.StringToSID64(match[1])
+		if errSid != nil {
+			return nil, errors.Wrapf(errSid, "Found invalid ID: %s", match[1])
+		}
+		found = append(found, sid)
+	}
+	return found, nil
 }

@@ -13,9 +13,9 @@ A golang library for querying the [steam webapi](https://wiki.teamfortress.com/w
 ## Endpoints
 
 - [x] ISteamApps
-    - [x] GetAppList
-    - [x] GetServersAtAddress
-    - [x] UpToDateCheck
+    - GetAppList
+    - GetServersAtAddress
+    - UpToDateCheck
 
 - [x] ISteamEconomy
     - GetAssetClassInfo
@@ -48,7 +48,10 @@ A golang library for querying the [steam webapi](https://wiki.teamfortress.com/w
     - [x] GetSchemaURL
     - [x] GetStoreMetadata
     - [ ] GetStoreStatus
-    
+
+- [x] Extra Non-WebAPIs functions
+  - [x] GetGroupMembers - Return a list of steamids belonging to a steam group
+
 ## Example Usage
 
     import (
