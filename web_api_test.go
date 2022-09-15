@@ -64,6 +64,12 @@ func TestGetServersAtAddress(t *testing.T) {
 	require.True(t, len(servers) > 0)
 }
 
+func TestGetServerList(t *testing.T) {
+	servers, err := GetServerList(map[string]string{"appid": "440"})
+	require.NoError(t, err)
+	require.True(t, len(servers) > 0)
+}
+
 func TestUpToDateCheck(t *testing.T) {
 	respOld, err := UpToDateCheck(440, 100)
 	require.NoError(t, err)

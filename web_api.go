@@ -16,7 +16,7 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -135,7 +135,7 @@ func apiRequest(path string, values url.Values, recv interface{}) error {
 	if errG != nil {
 		return errors.Wrap(errG, "Failed to perform http request")
 	}
-	b, errR := ioutil.ReadAll(resp.Body)
+	b, errR := io.ReadAll(resp.Body)
 	if errR != nil {
 		return errors.Wrap(errR, "Failed to read response body")
 	}
@@ -308,6 +308,49 @@ func GetServersAtAddress(ipAddr net.IP) ([]ServerAtAddress, error) {
 	if !r.Response.Success {
 		return nil, errors.New("Invalid response")
 	}
+	return r.Response.Servers, nil
+}
+
+type Server struct {
+	Addr       string `json:"addr"`
+	Gameport   int    `json:"gameport"`
+	Steamid    string `json:"steamid"`
+	Name       string `json:"name"`
+	Appid      int    `json:"appid"`
+	Gamedir    string `json:"gamedir"`
+	Version    string `json:"version"`
+	Product    string `json:"product"`
+	Region     int    `json:"region"`
+	Players    int    `json:"players"`
+	MaxPlayers int    `json:"max_players"`
+	Bots       int    `json:"bots"`
+	Map        string `json:"map"`
+	Secure     bool   `json:"secure"`
+	Dedicated  bool   `json:"dedicated"`
+	Os         string `json:"os"`
+	Gametype   string `json:"gametype"`
+}
+
+// GetServerList Shows all steam-compatible servers
+func GetServerList(filters map[string]string) ([]Server, error) {
+	type response struct {
+		Response struct {
+			Servers []Server `json:"servers"`
+		} `json:"response"`
+	}
+	var r response
+	filterStr := ""
+	for k, v := range filters {
+		filterStr += fmt.Sprintf("\\%s\\%s", k, v)
+	}
+	err := apiRequest("/IGameServersService/GetServerList/v1", url.Values{
+		"filter": []string{filterStr},
+		"limit":  []string{"25000"},
+	}, &r)
+	if err != nil {
+		return nil, err
+	}
+
 	return r.Response.Servers, nil
 }
 
@@ -1154,7 +1197,7 @@ func GetGroupMembers(ctx context.Context, groupId steamid.GID) (steamid.Collecti
 	if respErr != nil {
 		return nil, errors.Wrapf(reqErr, "Failed to perform request")
 	}
-	body, bodyErr := ioutil.ReadAll(resp.Body)
+	body, bodyErr := io.ReadAll(resp.Body)
 	if bodyErr != nil {
 		return nil, errors.Wrapf(reqErr, "Failed to read response body")
 	}
