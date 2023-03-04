@@ -46,7 +46,7 @@ func TestGetUserGroupList(t *testing.T) {
 }
 
 func TestGetFriendList(t *testing.T) {
-	friends, err := GetFriendList(testIDSquirrelly)
+	friends, err := GetFriendList(testIDMurph)
 	require.NoError(t, err)
 	require.True(t, len(friends) > 50)
 }
