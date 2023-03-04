@@ -257,9 +257,9 @@ func GetUserGroupList(steamID steamid.SID64) ([]steamid.GID, error) {
 }
 
 type Friend struct {
-	Steamid      steamid.SID64 `json:"steamid"`
-	Relationship string        `json:"relationship"`
-	FriendSince  int           `json:"friend_since"`
+	Steamid      string `json:"steamid"`
+	Relationship string `json:"relationship"`
+	FriendSince  int    `json:"friend_since"`
 }
 
 func GetFriendList(steamID steamid.SID64) ([]Friend, error) {
