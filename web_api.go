@@ -16,6 +16,7 @@ import (
 	"github.com/leighmacdonald/steamid/v2/steamid"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -135,7 +136,7 @@ func apiRequest(path string, values url.Values, recv interface{}) error {
 	if errG != nil {
 		return errors.Wrap(errG, "Failed to perform http request")
 	}
-	b, errR := ioutil.ReadAll(resp.Body)
+	b, errR := io.ReadAll(resp.Body)
 	if errR != nil {
 		return errors.Wrap(errR, "Failed to read response body")
 	}
