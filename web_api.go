@@ -17,7 +17,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -66,14 +65,6 @@ func SetKey(key string) error {
 	return nil
 }
 
-// SetDefaultExpiry sets the package level caching functionality
-// Setting to a value <= 0 will disable caching
-func SetDefaultExpiry(seconds int) {
-	cfgMu.Lock()
-	cacheExpiry = seconds
-	cfgMu.Unlock()
-}
-
 // SetLang sets the package level language to use for results which have translations available
 // ISO639-1 language code plus ISO 3166-1 alpha 2 country code of the language to return strings in.
 // Some examples include en_US, de_DE, zh_CN, and ko_KR. Default: en_US
@@ -101,16 +92,11 @@ func GetAppList() ([]App, error) {
 			Apps []App `json:"apps"`
 		} `json:"applist"`
 	}
-	cv, valid := cache.get(ckApps)
-	if valid {
-		return cv.([]App), nil
-	}
 	var r response
 	err := apiRequest("/ISteamApps/GetAppList/v2", nil, &r)
 	if err != nil {
 		return nil, err
 	}
-	cache.set(ckApps, cv)
 	return r.Applist.Apps, nil
 }
 
@@ -563,16 +549,11 @@ func GetSchemaOverview(appID steamid.AppID) (*SchemaOverview, error) {
 	type response struct {
 		Result SchemaOverview `json:"result"`
 	}
-	cv, valid := cache.get(ckSchemaOverview)
-	if valid {
-		return cv.(*SchemaOverview), nil
-	}
 	var r response
 	err := apiRequest(fmt.Sprintf("/IEconItems_%d/GetSchemaOverview/v0001/", appID), url.Values{}, &r)
 	if err != nil {
 		return nil, err
 	}
-	cache.set(ckSchemaOverview, &r.Result)
 	return &r.Result, nil
 }
 
@@ -638,10 +619,6 @@ func GetSchemaItems(appID steamid.AppID) ([]SchemaItem, error) {
 			Next         int          `json:"next"`
 		} `json:"result"`
 	}
-	cv, valid := cache.get(ckSchemaItems)
-	if valid {
-		return cv.([]SchemaItem), nil
-	}
 	var (
 		items []SchemaItem
 		page  = 0
@@ -660,7 +637,6 @@ func GetSchemaItems(appID steamid.AppID) ([]SchemaItem, error) {
 		items = append(items, r.Result.Items...)
 		page = r.Result.Next
 	}
-	cache.set(ckSchemaItems, items, 3600)
 	return items, nil
 }
 
@@ -672,10 +648,6 @@ func GetSchemaURL(appID steamid.AppID) (string, error) {
 			ItemsGameURL string `json:"items_game_url"`
 		} `json:"result"`
 	}
-	cv, valid := cache.get(ckSchemaURL)
-	if valid {
-		return cv.(string), nil
-	}
 	var r response
 	err := apiRequest(fmt.Sprintf("/IEconItems_%d/GetSchemaURL/v0001/", appID), url.Values{}, &r)
 	if err != nil {
@@ -684,7 +656,6 @@ func GetSchemaURL(appID steamid.AppID) (string, error) {
 	if r.Result.Status != 1 {
 		return "", ErrInvalidResponse
 	}
-	cache.set(ckSchemaURL, r.Result.ItemsGameURL, 3600)
 	return r.Result.ItemsGameURL, nil
 }
 
@@ -819,16 +790,11 @@ func GetStoreMetaData(appID steamid.AppID) (*StoreMetaData, error) {
 	type response struct {
 		Result StoreMetaData `json:"result"`
 	}
-	cv, valid := cache.get(ckStoreMetaData)
-	if valid {
-		return cv.(*StoreMetaData), nil
-	}
 	var r response
 	err := apiRequest(fmt.Sprintf("/IEconItems_%d/GetStoreMetaData/v0001/", appID), url.Values{}, &r)
 	if err != nil {
 		return nil, err
 	}
-	cache.set(ckStoreMetaData, &r.Result)
 	return &r.Result, nil
 }
 
@@ -867,16 +833,11 @@ func GetSupportedAPIList() ([]SupportedAPIInterfaces, error) {
 			Interfaces []SupportedAPIInterfaces `json:"interfaces"`
 		} `json:"apilist"`
 	}
-	cv, valid := cache.get(ckAPIList)
-	if valid {
-		return cv.([]SupportedAPIInterfaces), nil
-	}
 	var r response
 	err := apiRequest("/ISteamWebAPIUtil/GetSupportedAPIList/v0001/", url.Values{}, &r)
 	if err != nil {
 		return nil, err
 	}
-	cache.set(ckAPIList, r.Apilist.Interfaces)
 	return r.Apilist.Interfaces, nil
 }
 
@@ -1155,7 +1116,7 @@ func GetGroupMembers(ctx context.Context, groupId steamid.GID) (steamid.Collecti
 	if respErr != nil {
 		return nil, errors.Wrapf(reqErr, "Failed to perform request")
 	}
-	body, bodyErr := ioutil.ReadAll(resp.Body)
+	body, bodyErr := io.ReadAll(resp.Body)
 	if bodyErr != nil {
 		return nil, errors.Wrapf(reqErr, "Failed to read response body")
 	}
