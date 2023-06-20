@@ -136,7 +136,7 @@ func apiRequest(ctx context.Context, path string, values url.Values, target any)
 		if resp.StatusCode == http.StatusServiceUnavailable {
 			return ErrServiceUnavailable
 		}
-		return errors.Errorf("Invalid status code recieved: %d", resp.StatusCode)
+		return errors.Errorf("Invalid status code received: %d", resp.StatusCode)
 	}
 	if errU := json.Unmarshal(b, &target); errU != nil {
 		return errors.Wrap(errU, "Failed to decode JSON response")
