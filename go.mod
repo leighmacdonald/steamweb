@@ -1,6 +1,6 @@
-module github.com/leighmacdonald/steamweb
+module github.com/leighmacdonald/steamweb/v2
 
-go 1.18
+go 1.20
 
 require (
 	github.com/leighmacdonald/steamid/v2 v2.2.0
