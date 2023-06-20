@@ -1,8 +1,7 @@
 # steamweb
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Test, Build & Publish](https://github.com/leighmacdonald/steamweb/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/leighmacdonald/steamweb/actions/workflows/build.yml)
-[![release](https://github.com/leighmacdonald/steamweb/actions/workflows/release.yml/badge.svg?event=release)](https://github.com/leighmacdonald/steamweb/actions/workflows/release.yml)
+[![Build](https://github.com/leighmacdonald/steamweb/actions/workflows/check.yml/badge.svg?branch=master)](https://github.com/leighmacdonald/steamweb/actions/workflows/check.yml)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/f06234b0551a49cc8ac111d7b77827b2)](https://www.codacy.com/manual/leighmacdonald/steamweb?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=leighmacdonald/steamweb&amp;utm_campaign=Badge_Grade)
 [![Go Report Card](https://goreportcard.com/badge/github.com/leighmacdonald/steamweb)](https://goreportcard.com/report/github.com/leighmacdonald/steamweb)
 [![GoDoc](https://godoc.org/github.com/leighmacdonald/steamweb?status.svg)](https://pkg.go.dev/github.com/leighmacdonald/steamweb)
