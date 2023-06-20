@@ -23,6 +23,7 @@ func TestMain(m *testing.M) {
 		fmt.Println("steam_api_key unset, SetKey(), or STEAM_TOKEN env key required")
 		os.Exit(1)
 	}
+	_ = SetLang("en_US")
 	os.Exit(m.Run())
 }
 
@@ -94,13 +95,13 @@ func TestGetNumberOfCurrentPlayers(t *testing.T) {
 }
 
 func TestGetUserStatsForGame(t *testing.T) {
-	t.Skipf("Service not currently functional")
-	return
-	_, err := GetUserStatsForGame(context.Background(), testIDSquirrelly, 440)
-	require.Error(t, err)
-
+	s, err := GetUserStatsForGame(context.Background(), testIDSquirrelly, 440)
+	require.NoError(t, err)
+	require.True(t, len(s.Stats) > 0)
+	require.True(t, len(s.Achievements) > 0)
+	require.Equal(t, "Team Fortress 2", s.GameName)
 	_, err2 := GetUserStatsForGame(context.Background(), 76561198084134025, 440)
-	require.NoError(t, err2)
+	require.Error(t, err2)
 }
 
 func TestGetPlayerItems(t *testing.T) {
@@ -134,13 +135,13 @@ func TestGetSchemaItems(t *testing.T) {
 }
 
 func TestGetSchemaURL(t *testing.T) {
-	schemaUrl, err := GetSchemaURL(context.Background(), 440)
+	schemaURL, err := GetSchemaURL(context.Background(), 440)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
 	}
 	require.NoError(t, err)
-	require.True(t, len(schemaUrl) > 50)
+	require.True(t, len(schemaURL) > 50)
 }
 
 func TestGetStoreMetaData(t *testing.T) {
