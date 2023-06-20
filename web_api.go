@@ -344,7 +344,7 @@ type GetNewsForAppOptions struct {
 
 // NewsItem is an individual news entry
 type NewsItem struct {
-	GID           steamid.GID `json:"gid"`
+	GID           steamid.GID `json:"gid,string"`
 	Title         string      `json:"title"`
 	URL           string      `json:"url"`
 	IsExternalURL bool        `json:"is_external_url"`

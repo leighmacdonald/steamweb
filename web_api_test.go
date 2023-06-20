@@ -83,8 +83,8 @@ func TestGetNewsForApp(t *testing.T) {
 	opts := &GetNewsForAppOptions{
 		Count: 10,
 	}
-	newsItemsCount, err := GetNewsForApp(context.Background(), 440, opts)
-	require.NoError(t, err)
+	newsItemsCount, err2 := GetNewsForApp(context.Background(), 440, opts)
+	require.NoError(t, err2)
 	require.Equal(t, int(opts.Count), len(newsItemsCount))
 }
 
