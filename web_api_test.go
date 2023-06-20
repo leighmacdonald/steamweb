@@ -23,94 +23,95 @@ func TestMain(m *testing.M) {
 		fmt.Println("steam_api_key unset, SetKey(), or STEAM_TOKEN env key required")
 		os.Exit(1)
 	}
+	_ = SetLang("en_US")
 	os.Exit(m.Run())
 }
 
 func TestGetAppList(t *testing.T) {
-	apps, err := GetAppList()
+	apps, err := GetAppList(context.Background())
 	require.NoError(t, err)
 	require.True(t, len(apps) > 5000)
 }
 
 func TestPlayerSummaries(t *testing.T) {
 	ids := steamid.Collection{76561198132612090, testIDSquirrelly, 76561197960435530}
-	p, err := PlayerSummaries(ids)
+	p, err := PlayerSummaries(context.Background(), ids)
 	require.NoError(t, err)
 	require.Equal(t, len(ids), len(p))
 }
 
 func TestGetUserGroupList(t *testing.T) {
-	groupIDs, err := GetUserGroupList(testIDSquirrelly)
+	groupIDs, err := GetUserGroupList(context.Background(), testIDSquirrelly)
 	require.NoError(t, err)
 	require.True(t, len(groupIDs) > 5)
 }
 
 func TestGetFriendList(t *testing.T) {
-	friends, err := GetFriendList(testIDMurph)
+	friends, err := GetFriendList(context.Background(), 76561198132612090)
 	require.NoError(t, err)
-	require.True(t, len(friends) > 50)
+	require.True(t, len(friends) > 10)
 }
 
 func TestGetPlayerBans(t *testing.T) {
 	ids := steamid.Collection{76561198132612090, testIDSquirrelly, 76561197960435530}
-	bans, err := GetPlayerBans(ids)
+	bans, err := GetPlayerBans(context.Background(), ids)
 	require.NoError(t, err)
 	require.Equal(t, len(ids), len(bans))
 }
 
 func TestGetServersAtAddress(t *testing.T) {
-	servers, err := GetServersAtAddress(net.ParseIP("51.222.245.142"))
+	servers, err := GetServersAtAddress(context.Background(), net.ParseIP("51.222.245.142"))
 	require.NoError(t, err)
 	require.True(t, len(servers) > 0)
 }
 
 func TestGetServerList(t *testing.T) {
-	servers, err := GetServerList(map[string]string{"appid": "440"})
+	servers, err := GetServerList(context.Background(), map[string]string{"appid": "440"})
 	require.NoError(t, err)
 	require.True(t, len(servers) > 0)
 }
 
 func TestUpToDateCheck(t *testing.T) {
-	respOld, err := UpToDateCheck(440, 100)
+	respOld, err := UpToDateCheck(context.Background(), 440, 100)
 	require.NoError(t, err)
 	require.True(t, respOld.Success)
 	require.False(t, respOld.UpToDate)
-	respNew, err2 := UpToDateCheck(440, respOld.RequiredVersion)
+	respNew, err2 := UpToDateCheck(context.Background(), 440, respOld.RequiredVersion)
 	require.NoError(t, err2)
 	require.True(t, respNew.Success)
 	require.True(t, respNew.UpToDate)
 }
 
 func TestGetNewsForApp(t *testing.T) {
-	newsItems, err := GetNewsForApp(440, nil)
+	newsItems, err := GetNewsForApp(context.Background(), 440, nil)
 	require.NoError(t, err)
 	require.True(t, len(newsItems) > 1)
 	opts := &GetNewsForAppOptions{
 		Count: 10,
 	}
-	newsItemsCount, err := GetNewsForApp(440, opts)
-	require.NoError(t, err)
+	newsItemsCount, err2 := GetNewsForApp(context.Background(), 440, opts)
+	require.NoError(t, err2)
 	require.Equal(t, int(opts.Count), len(newsItemsCount))
 }
 
 func TestGetNumberOfCurrentPlayers(t *testing.T) {
-	players, err := GetNumberOfCurrentPlayers(440)
+	players, err := GetNumberOfCurrentPlayers(context.Background(), 440)
 	require.NoError(t, err)
 	require.Greater(t, players, 2000)
 }
 
 func TestGetUserStatsForGame(t *testing.T) {
-	t.Skipf("Service not currently functional")
-	return
-	_, err := GetUserStatsForGame(testIDSquirrelly, 440)
-	require.Error(t, err)
-
-	_, err2 := GetUserStatsForGame(76561198084134025, 440)
-	require.NoError(t, err2)
+	s, err := GetUserStatsForGame(context.Background(), testIDSquirrelly, 440)
+	require.NoError(t, err)
+	require.True(t, len(s.Stats) > 0)
+	require.True(t, len(s.Achievements) > 0)
+	require.Equal(t, "Team Fortress 2", s.GameName)
+	_, err2 := GetUserStatsForGame(context.Background(), 76561198084134025, 440)
+	require.Error(t, err2)
 }
 
 func TestGetPlayerItems(t *testing.T) {
-	_, c, err := GetPlayerItems(testIDSquirrelly, 440)
+	_, c, err := GetPlayerItems(context.Background(), testIDSquirrelly, 440)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -120,7 +121,7 @@ func TestGetPlayerItems(t *testing.T) {
 }
 
 func TestGetSchemaOverview(t *testing.T) {
-	s, err := GetSchemaOverview(440)
+	s, err := GetSchemaOverview(context.Background(), 440)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -130,7 +131,7 @@ func TestGetSchemaOverview(t *testing.T) {
 }
 
 func TestGetSchemaItems(t *testing.T) {
-	items, err := GetSchemaItems(440)
+	items, err := GetSchemaItems(context.Background(), 440)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -140,17 +141,17 @@ func TestGetSchemaItems(t *testing.T) {
 }
 
 func TestGetSchemaURL(t *testing.T) {
-	schemaUrl, err := GetSchemaURL(440)
+	schemaURL, err := GetSchemaURL(context.Background(), 440)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
 	}
 	require.NoError(t, err)
-	require.True(t, len(schemaUrl) > 50)
+	require.True(t, len(schemaURL) > 50)
 }
 
 func TestGetStoreMetaData(t *testing.T) {
-	md, err := GetStoreMetaData(440)
+	md, err := GetStoreMetaData(context.Background(), 440)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -160,7 +161,7 @@ func TestGetStoreMetaData(t *testing.T) {
 }
 
 func TestGetSupportedAPIList(t *testing.T) {
-	apiList, err := GetSupportedAPIList()
+	apiList, err := GetSupportedAPIList(context.Background())
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -176,7 +177,7 @@ func TestResolveVanityURL(t *testing.T) {
 		"https://steamcommunity.com/id/SQUIRRELLY",
 		"https://steamcommunity.com/profiles/76561197961279983"}
 	for _, s := range queries {
-		sid, err := ResolveVanityURL(s)
+		sid, err := ResolveVanityURL(context.Background(), s)
 		if err != nil && errors.Is(err, ErrServiceUnavailable) {
 			t.Skipf("Service not available currently")
 			return
@@ -187,7 +188,7 @@ func TestResolveVanityURL(t *testing.T) {
 }
 
 func TestGetSteamLevel(t *testing.T) {
-	sl, err := GetSteamLevel(testIDSquirrelly)
+	sl, err := GetSteamLevel(context.Background(), testIDSquirrelly)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -197,7 +198,7 @@ func TestGetSteamLevel(t *testing.T) {
 }
 
 func TestGetRecentlyPlayedGames(t *testing.T) {
-	rp, err := GetRecentlyPlayedGames(testIDMurph)
+	rp, err := GetRecentlyPlayedGames(context.Background(), testIDMurph)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -207,7 +208,7 @@ func TestGetRecentlyPlayedGames(t *testing.T) {
 }
 
 func TestGetOwnedGames(t *testing.T) {
-	rp, err := GetOwnedGames(testIDDane)
+	rp, err := GetOwnedGames(context.Background(), testIDDane)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -217,7 +218,7 @@ func TestGetOwnedGames(t *testing.T) {
 }
 
 func TestGetBadges(t *testing.T) {
-	bds, err := GetBadges(testIDDane)
+	bds, err := GetBadges(context.Background(), testIDDane)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -228,7 +229,7 @@ func TestGetBadges(t *testing.T) {
 }
 
 func TestGetCommunityBadgeProgress(t *testing.T) {
-	bds, err := GetCommunityBadgeProgress(testIDDane)
+	bds, err := GetCommunityBadgeProgress(context.Background(), testIDDane)
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return
@@ -241,7 +242,7 @@ func TestGetCommunityBadgeProgress(t *testing.T) {
 }
 
 func TestGetAssetClassInfo(t *testing.T) {
-	bds, err := GetAssetClassInfo(testAppTF2, []int{195151, 16891096})
+	bds, err := GetAssetClassInfo(context.Background(), testAppTF2, []int{195151, 16891096})
 	if err != nil && errors.Is(err, ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 		return

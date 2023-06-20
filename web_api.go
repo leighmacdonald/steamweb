@@ -31,7 +31,9 @@ import (
 const baseURL = "https://api.steampowered.com%s?"
 
 var (
-	ErrInvalidResponse    = errors.New("Invalid response")
+	// ErrInvalidResponse is Returned when a non 200 response occurs
+	ErrInvalidResponse = errors.New("Invalid response")
+	// ErrServiceUnavailable is returned when the steam api is down / not available for some reason / it's tuesday
 	ErrServiceUnavailable = errors.New("Service Unavailable")
 	// ErrNoAPIKey is returned for functions that require an API key to use when one has not been set
 	ErrNoAPIKey = errors.New("No steam web api key, to obtain one see: " +
@@ -65,14 +67,6 @@ func SetKey(key string) error {
 	return nil
 }
 
-// SetDefaultExpiry sets the package level caching functionality
-// Setting to a value <= 0 will disable caching
-func SetDefaultExpiry(seconds int) {
-	cfgMu.Lock()
-	cacheExpiry = seconds
-	cfgMu.Unlock()
-}
-
 // SetLang sets the package level language to use for results which have translations available
 // ISO639-1 language code plus ISO 3166-1 alpha 2 country code of the language to return strings in.
 // Some examples include en_US, de_DE, zh_CN, and ko_KR. Default: en_US
@@ -88,38 +82,34 @@ func SetLang(newLang string) error {
 	return nil
 }
 
+// App is a known steam application
 type App struct {
-	Appid int    `json:"appid"`
+	AppID int    `json:"appid"`
 	Name  string `json:"name"`
 }
 
 // GetAppList Full list of every publicly facing program in the store/library.
-func GetAppList() ([]App, error) {
+func GetAppList(ctx context.Context) ([]App, error) {
 	type response struct {
-		Applist struct {
+		AppList struct {
 			Apps []App `json:"apps"`
 		} `json:"applist"`
 	}
-	cv, valid := cache.get(ckApps)
-	if valid {
-		return cv.([]App), nil
-	}
 	var r response
-	err := apiRequest("/ISteamApps/GetAppList/v2", nil, &r)
+	err := apiRequest(ctx, "/ISteamApps/GetAppList/v2", nil, &r)
 	if err != nil {
 		return nil, err
 	}
-	cache.set(ckApps, cv)
-	return r.Applist.Apps, nil
+	return r.AppList.Apps, nil
 }
 
 // apiRequest is the base function that facilitates all HTTP requests to the API
-func apiRequest(path string, values url.Values, recv interface{}) error {
+func apiRequest(ctx context.Context, path string, values url.Values, target any) error {
 	if apiKey == "" {
 		return ErrNoAPIKey
 	}
 	u := fmt.Sprintf(baseURL, path)
-	c, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	c, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 	req, err := http.NewRequestWithContext(c, http.MethodGet, u, nil)
 	if err != nil {
@@ -139,16 +129,16 @@ func apiRequest(path string, values url.Values, recv interface{}) error {
 	if errR != nil {
 		return errors.Wrap(errR, "Failed to read response body")
 	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusServiceUnavailable {
 			return ErrServiceUnavailable
 		}
-		return errors.Errorf("Invalid status code recieved: %d\n%s", resp.StatusCode, string(b))
+		return errors.Errorf("Invalid status code recieved: %d", resp.StatusCode)
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-	if errU := json.Unmarshal(b, &recv); errU != nil {
+	if errU := json.Unmarshal(b, &target); errU != nil {
 		return errors.Wrap(errU, "Failed to decode JSON response")
 	}
 	return nil
@@ -156,30 +146,30 @@ func apiRequest(path string, values url.Values, recv interface{}) error {
 
 // PlayerSummary is the unaltered player summary from the steam official API
 type PlayerSummary struct {
-	Steamid                  string `json:"steamid"`
-	CommunityVisibilityState int    `json:"communityvisibilitystate"`
-	ProfileState             int    `json:"profilestate"`
-	PersonaName              string `json:"personaname"`
-	ProfileURL               string `json:"profileurl"`
-	Avatar                   string `json:"avatar"`
-	AvatarMedium             string `json:"avatarmedium"`
-	AvatarFull               string `json:"avatarfull"`
-	AvatarHash               string `json:"avatarhash"`
-	PersonaState             int    `json:"personastate"`
-	RealName                 string `json:"realname"`
-	PrimaryClanID            string `json:"primaryclanid"`
-	TimeCreated              int    `json:"timecreated"`
-	PersonastateFlags        int    `json:"personastateflags"`
-	LocCountryCode           string `json:"loccountrycode"`
-	LocStateCode             string `json:"locstatecode"`
-	LocCityID                int    `json:"loccityid"`
+	SteamID                  steamid.SID64 `json:"steamid"`
+	CommunityVisibilityState int           `json:"communityvisibilitystate"`
+	ProfileState             int           `json:"profilestate"`
+	PersonaName              string        `json:"personaname"`
+	ProfileURL               string        `json:"profileurl"`
+	Avatar                   string        `json:"avatar"`
+	AvatarMedium             string        `json:"avatarmedium"`
+	AvatarFull               string        `json:"avatarfull"`
+	AvatarHash               string        `json:"avatarhash"`
+	PersonaState             int           `json:"personastate"`
+	RealName                 string        `json:"realname"`
+	PrimaryClanID            string        `json:"primaryclanid"`
+	TimeCreated              int           `json:"timecreated"`
+	PersonaStateFlags        int           `json:"personastateflags"`
+	LocCountryCode           string        `json:"loccountrycode"`
+	LocStateCode             string        `json:"locstatecode"`
+	LocCityID                int           `json:"loccityid"`
 }
 
 // PlayerSummaries will call GetPlayerSummaries on the valve WebAPI returning the players
 // portion of the response as []PlayerSummary
 //
 // It will only accept up to 100 steamids in a single call
-func PlayerSummaries(steamIDs steamid.Collection) ([]PlayerSummary, error) {
+func PlayerSummaries(ctx context.Context, steamIDs steamid.Collection) ([]PlayerSummary, error) {
 	type response struct {
 		Response struct {
 			Players []PlayerSummary `json:"players"`
@@ -192,7 +182,7 @@ func PlayerSummaries(steamIDs steamid.Collection) ([]PlayerSummary, error) {
 		return nil, errors.New("Too many steam ids, max 100")
 	}
 	var r response
-	err := apiRequest("/ISteamUser/GetPlayerSummaries/v0002/", url.Values{
+	err := apiRequest(ctx, "/ISteamUser/GetPlayerSummaries/v0002/", url.Values{
 		"steamids": []string{strings.Join(steamIDs.ToStringSlice(), ",")},
 	}, &r)
 	if err != nil {
@@ -201,19 +191,20 @@ func PlayerSummaries(steamIDs steamid.Collection) ([]PlayerSummary, error) {
 	return r.Response.Players, err
 }
 
+// PlayerBanState contains a players current account ban status
 type PlayerBanState struct {
-	SteamID          string `json:"SteamId"`
-	CommunityBanned  bool   `json:"CommunityBanned"`
-	VACBanned        bool   `json:"VACBanned"`
-	NumberOfVACBans  int    `json:"NumberOfVACBans"`
-	DaysSinceLastBan int    `json:"DaysSinceLastBan"`
-	NumberOfGameBans int    `json:"NumberOfGameBans"`
-	EconomyBan       string `json:"EconomyBan"`
+	SteamID          steamid.SID64 `json:"SteamId"`
+	CommunityBanned  bool          `json:"CommunityBanned"`
+	VACBanned        bool          `json:"VACBanned"`
+	NumberOfVACBans  int           `json:"NumberOfVACBans"`
+	DaysSinceLastBan int           `json:"DaysSinceLastBan"`
+	NumberOfGameBans int           `json:"NumberOfGameBans"`
+	EconomyBan       string        `json:"EconomyBan"`
 }
 
-// GetPlayerBans
+// GetPlayerBans fetches a players known steam bans. This includes bans that have "aged out" and are hidden on profiles.
 // https://wiki.teamfortress.com/wiki/WebAPI/GetPlayerBans
-func GetPlayerBans(steamIDs steamid.Collection) ([]PlayerBanState, error) {
+func GetPlayerBans(ctx context.Context, steamIDs steamid.Collection) ([]PlayerBanState, error) {
 	type response struct {
 		Players []PlayerBanState `json:"players"`
 	}
@@ -224,7 +215,7 @@ func GetPlayerBans(steamIDs steamid.Collection) ([]PlayerBanState, error) {
 		return nil, errors.New("Too many steam ids, max 100")
 	}
 	var r response
-	err := apiRequest("/ISteamUser/GetPlayerBans/v1/", url.Values{
+	err := apiRequest(ctx, "/ISteamUser/GetPlayerBans/v1/", url.Values{
 		"steamids": []string{strings.Join(steamIDs.ToStringSlice(), ",")},
 	}, &r)
 	if err != nil {
@@ -233,7 +224,8 @@ func GetPlayerBans(steamIDs steamid.Collection) ([]PlayerBanState, error) {
 	return r.Players, err
 }
 
-func GetUserGroupList(steamID steamid.SID64) ([]steamid.GID, error) {
+// GetUserGroupList returns a list of a users public groups
+func GetUserGroupList(ctx context.Context, steamID steamid.SID64) ([]steamid.GID, error) {
 	type GetUserGroupListResponse struct {
 		Response struct {
 			Success bool `json:"success"`
@@ -243,7 +235,7 @@ func GetUserGroupList(steamID steamid.SID64) ([]steamid.GID, error) {
 		} `json:"response"`
 	}
 	var r GetUserGroupListResponse
-	err := apiRequest("/ISteamUser/GetUserGroupList/v1", url.Values{
+	err := apiRequest(ctx, "/ISteamUser/GetUserGroupList/v1", url.Values{
 		"steamid": []string{steamID.String()},
 	}, &r)
 	if err != nil {
@@ -256,20 +248,22 @@ func GetUserGroupList(steamID steamid.SID64) ([]steamid.GID, error) {
 	return ids, nil
 }
 
+// Friend contains a known user friendship
 type Friend struct {
-	Steamid      string `json:"steamid"`
-	Relationship string `json:"relationship"`
-	FriendSince  int    `json:"friend_since"`
+	SteamID      steamid.SID64 `json:"steamid"`
+	Relationship string        `json:"relationship"`
+	FriendSince  int           `json:"friend_since"`
 }
 
-func GetFriendList(steamID steamid.SID64) ([]Friend, error) {
+// GetFriendList returns all the users friends if public
+func GetFriendList(ctx context.Context, steamID steamid.SID64) ([]Friend, error) {
 	type GetFriendListResponse struct {
 		Friendslist struct {
 			Friends []Friend `json:"friends"`
 		} `json:"friendslist"`
 	}
 	var r GetFriendListResponse
-	err := apiRequest("/ISteamUser/GetFriendList/v1", url.Values{
+	err := apiRequest(ctx, "/ISteamUser/GetFriendList/v1", url.Values{
 		"steamid": []string{steamID.String()},
 	}, &r)
 	if err != nil {
@@ -278,20 +272,21 @@ func GetFriendList(steamID steamid.SID64) ([]Friend, error) {
 	return r.Friendslist.Friends, nil
 }
 
+// ServerAtAddress holds individual server instance info for an IP
 type ServerAtAddress struct {
-	Addr     string `json:"addr"`
-	GmsIndex int    `json:"gmsindex"`
-	Appid    int    `json:"appid"`
-	Gamedir  string `json:"gamedir"`
-	Region   int    `json:"region"`
-	Secure   bool   `json:"secure"`
-	Lan      bool   `json:"lan"`
-	Gameport int    `json:"gameport"`
-	Specport int    `json:"specport"`
+	Addr     string        `json:"addr"`
+	GmsIndex int           `json:"gmsindex"`
+	AppID    steamid.AppID `json:"appid"`
+	GameDir  string        `json:"gamedir"`
+	Region   int           `json:"region"`
+	Secure   bool          `json:"secure"`
+	Lan      bool          `json:"lan"`
+	GamePort int           `json:"gameport"`
+	SpecPort int           `json:"specport"`
 }
 
 // GetServersAtAddress Shows all steam-compatible servers related to a IPv4 Address.
-func GetServersAtAddress(ipAddr net.IP) ([]ServerAtAddress, error) {
+func GetServersAtAddress(ctx context.Context, ipAddr net.IP) ([]ServerAtAddress, error) {
 	type response struct {
 		Response struct {
 			Success bool              `json:"success"`
@@ -299,7 +294,7 @@ func GetServersAtAddress(ipAddr net.IP) ([]ServerAtAddress, error) {
 		} `json:"response"`
 	}
 	var r response
-	err := apiRequest("/ISteamApps/GetServersAtAddress/v0001", url.Values{
+	err := apiRequest(ctx, "/ISteamApps/GetServersAtAddress/v0001", url.Values{
 		"addr": []string{ipAddr.String()},
 	}, &r)
 	if err != nil {
@@ -311,13 +306,14 @@ func GetServersAtAddress(ipAddr net.IP) ([]ServerAtAddress, error) {
 	return r.Response.Servers, nil
 }
 
+// Server contains details for servers returned from the master server list
 type Server struct {
 	Addr       string `json:"addr"`
-	Gameport   int    `json:"gameport"`
+	GamePort   int    `json:"gameport"`
 	Steamid    string `json:"steamid"`
 	Name       string `json:"name"`
 	Appid      int    `json:"appid"`
-	Gamedir    string `json:"gamedir"`
+	GameDir    string `json:"gamedir"`
 	Version    string `json:"version"`
 	Product    string `json:"product"`
 	Region     int    `json:"region"`
@@ -328,11 +324,11 @@ type Server struct {
 	Secure     bool   `json:"secure"`
 	Dedicated  bool   `json:"dedicated"`
 	Os         string `json:"os"`
-	Gametype   string `json:"gametype"`
+	GameType   string `json:"gametype"`
 }
 
 // GetServerList Shows all steam-compatible servers
-func GetServerList(filters map[string]string) ([]Server, error) {
+func GetServerList(ctx context.Context, filters map[string]string) ([]Server, error) {
 	type response struct {
 		Response struct {
 			Servers []Server `json:"servers"`
@@ -343,7 +339,7 @@ func GetServerList(filters map[string]string) ([]Server, error) {
 	for k, v := range filters {
 		filterStr += fmt.Sprintf("\\%s\\%s", k, v)
 	}
-	err := apiRequest("/IGameServersService/GetServerList/v1", url.Values{
+	err := apiRequest(ctx, "/IGameServersService/GetServerList/v1", url.Values{
 		"filter": []string{filterStr},
 		"limit":  []string{"25000"},
 	}, &r)
@@ -354,6 +350,7 @@ func GetServerList(filters map[string]string) ([]Server, error) {
 	return r.Response.Servers, nil
 }
 
+// VersionCheckInfo contains results of the version check
 type VersionCheckInfo struct {
 	Success           bool   `json:"success"`
 	UpToDate          bool   `json:"up_to_date"`
@@ -363,12 +360,12 @@ type VersionCheckInfo struct {
 }
 
 // UpToDateCheck Check if a given app version is the most current available.
-func UpToDateCheck(id steamid.AppID, version uint32) (*VersionCheckInfo, error) {
+func UpToDateCheck(ctx context.Context, id steamid.AppID, version uint32) (*VersionCheckInfo, error) {
 	type response struct {
 		Response VersionCheckInfo `json:"response"`
 	}
 	var r response
-	err := apiRequest("/ISteamApps/UpToDateCheck/v1", url.Values{
+	err := apiRequest(ctx, "/ISteamApps/UpToDateCheck/v1", url.Values{
 		"appid":   []string{fmt.Sprintf("%d", id)},
 		"version": []string{fmt.Sprintf("%d", version)},
 	}, &r)
@@ -381,6 +378,7 @@ func UpToDateCheck(id steamid.AppID, version uint32) (*VersionCheckInfo, error) 
 	return &r.Response, nil
 }
 
+// GetNewsForAppOptions holds query options for fetching news
 type GetNewsForAppOptions struct {
 	MaxLength uint32   `json:"max_length"`
 	EndDate   uint32   `json:"end_date"`
@@ -388,28 +386,29 @@ type GetNewsForAppOptions struct {
 	Feeds     []string `json:"feeds"`
 }
 
+// NewsItem is an individual news entry
 type NewsItem struct {
-	Gid           string   `json:"gid"`
-	Title         string   `json:"title"`
-	URL           string   `json:"url"`
-	IsExternalURL bool     `json:"is_external_url"`
-	Author        string   `json:"author"`
-	Contents      string   `json:"contents"`
-	FeedLabel     string   `json:"feedlabel"`
-	Date          int      `json:"date"`
-	FeedName      string   `json:"feedname"`
-	FeedType      int      `json:"feed_type"`
-	Appid         int      `json:"appid"`
-	Tags          []string `json:"tags,omitempty"`
+	GID           steamid.GID `json:"gid,string"`
+	Title         string      `json:"title"`
+	URL           string      `json:"url"`
+	IsExternalURL bool        `json:"is_external_url"`
+	Author        string      `json:"author"`
+	Contents      string      `json:"contents"`
+	FeedLabel     string      `json:"feedlabel"`
+	Date          int         `json:"date"`
+	FeedName      string      `json:"feedname"`
+	FeedType      int         `json:"feed_type"`
+	Appid         int         `json:"appid"`
+	Tags          []string    `json:"tags,omitempty"`
 }
 
 // GetNewsForApp News feed for various games
-func GetNewsForApp(id steamid.AppID, opts *GetNewsForAppOptions) ([]NewsItem, error) {
+func GetNewsForApp(ctx context.Context, id steamid.AppID, opts *GetNewsForAppOptions) ([]NewsItem, error) {
 	type response struct {
-		Appnews struct {
-			Appid     int        `json:"appid"`
-			NewsItems []NewsItem `json:"newsitems"`
-			Count     int        `json:"count"`
+		AppNews struct {
+			AppID     steamid.AppID `json:"appid"`
+			NewsItems []NewsItem    `json:"newsitems"`
+			Count     int           `json:"count"`
 		} `json:"appnews"`
 	}
 	v := url.Values{
@@ -431,15 +430,15 @@ func GetNewsForApp(id steamid.AppID, opts *GetNewsForAppOptions) ([]NewsItem, er
 	}
 
 	var r response
-	err := apiRequest("/ISteamNews/GetNewsForApp/v0002", v, &r)
+	err := apiRequest(ctx, "/ISteamNews/GetNewsForApp/v0002", v, &r)
 	if err != nil {
 		return nil, err
 	}
-	return r.Appnews.NewsItems, nil
+	return r.AppNews.NewsItems, nil
 }
 
 // GetNumberOfCurrentPlayers Returns the current number of players for an app.
-func GetNumberOfCurrentPlayers(id steamid.AppID) (int, error) {
+func GetNumberOfCurrentPlayers(ctx context.Context, id steamid.AppID) (int, error) {
 	type response struct {
 		Response struct {
 			PlayerCount int `json:"player_count"`
@@ -447,7 +446,7 @@ func GetNumberOfCurrentPlayers(id steamid.AppID) (int, error) {
 		} `json:"response"`
 	}
 	var r response
-	err := apiRequest("/ISteamUserStats/GetNumberOfCurrentPlayers/v1", url.Values{
+	err := apiRequest(ctx, "/ISteamUserStats/GetNumberOfCurrentPlayers/v1", url.Values{
 		"appid": []string{fmt.Sprintf("%d", id)},
 	}, &r)
 	if err != nil {
@@ -459,27 +458,41 @@ func GetNumberOfCurrentPlayers(id steamid.AppID) (int, error) {
 	return r.Response.PlayerCount, nil
 }
 
+// PlayerStats contains the users in-game stats as k/v pairs along with the achievements. Depends on account visibility.
+type PlayerStats struct {
+	SteamID  steamid.SID64 `json:"steamID"`
+	GameName string        `json:"gameName"`
+	Stats    []struct {
+		Name  string `json:"name"`
+		Value int    `json:"value"`
+	} `json:"stats"`
+	Achievements []struct {
+		Name     string `json:"name"`
+		Achieved int    `json:"achieved"`
+	} `json:"achievements"`
+}
+
 // GetUserStatsForGame currently 500 status with valid requests.
-func GetUserStatsForGame(steamID steamid.SID64, appID steamid.AppID) (interface{}, error) {
+func GetUserStatsForGame(ctx context.Context, steamID steamid.SID64, appID steamid.AppID) (PlayerStats, error) {
 	type response struct {
-		Response struct {
-		} `json:"response"`
+		PlayerStats PlayerStats `json:"playerstats"`
 	}
 	var r response
-	err := apiRequest("/ISteamUserStats/GetUserStatsForGame/v2", url.Values{
+	err := apiRequest(ctx, "/ISteamUserStats/GetUserStatsForGame/v2", url.Values{
 		"steamid": []string{steamID.String()},
 		"appid":   []string{fmt.Sprintf("%d", appID)},
 	}, &r)
 	if err != nil {
-		return 0, err
+		return PlayerStats{}, err
 	}
-	return r.Response, nil
+	return r.PlayerStats, nil
 }
 
+// InventoryItem is an individual items from a users game inventory.
 type InventoryItem struct {
 	ID         int   `json:"id"`
 	OriginalID int   `json:"original_id"`
-	Defindex   int   `json:"defindex"`
+	DefIndex   int   `json:"defindex"`
 	Level      int   `json:"level"`
 	Quality    int   `json:"quality"`
 	Inventory  int64 `json:"inventory"`
@@ -491,16 +504,16 @@ type InventoryItem struct {
 	} `json:"equipped,omitempty"`
 	FlagCannotTrade bool `json:"flag_cannot_trade,omitempty"`
 	Attributes      []struct {
-		Defindex   int         `json:"defindex"`
-		Value      interface{} `json:"value"`
-		FloatValue float64     `json:"float_value"`
+		DefIndex   int     `json:"defindex"`
+		Value      any     `json:"value"`
+		FloatValue float64 `json:"float_value"`
 	} `json:"attributes"`
 	FlagCannotCraft bool `json:"flag_cannot_craft,omitempty"`
 }
 
 // GetPlayerItems Lists items in a player's backpack.
 // https://wiki.teamfortress.com/wiki/WebAPI/GetPlayerItems
-func GetPlayerItems(steamID steamid.SID64, appID steamid.AppID) ([]InventoryItem, int, error) {
+func GetPlayerItems(ctx context.Context, steamID steamid.SID64, appID steamid.AppID) ([]InventoryItem, int, error) {
 	type response struct {
 		Result struct {
 			Status           int             `json:"status"`
@@ -509,7 +522,7 @@ func GetPlayerItems(steamID steamid.SID64, appID steamid.AppID) ([]InventoryItem
 		} `json:"result"`
 	}
 	var r response
-	err := apiRequest(fmt.Sprintf("/IEconItems_%d/GetPlayerItems/v0001/", appID), url.Values{
+	err := apiRequest(ctx, fmt.Sprintf("/IEconItems_%d/GetPlayerItems/v0001/", appID), url.Values{
 		"steamid": []string{steamID.String()},
 	}, &r)
 	if err != nil {
@@ -524,6 +537,7 @@ func GetPlayerItems(steamID steamid.SID64, appID steamid.AppID) ([]InventoryItem
 //	return nil, nil
 //}
 
+// SchemaOverview contains all known attributes that an item might potentially have
 type SchemaOverview struct {
 	Status       int    `json:"status"`
 	ItemsGameURL string `json:"items_game_url"`
@@ -564,16 +578,16 @@ type SchemaOverview struct {
 		Name       string   `json:"name"`
 		Items      []string `json:"items"`
 		Attributes []struct {
-			Name  string      `json:"name"`
-			Class string      `json:"class"`
-			Value interface{} `json:"value"`
+			Name  string `json:"name"`
+			Class string `json:"class"`
+			Value any    `json:"value"`
 		} `json:"attributes,omitempty"`
 		StoreBundle string `json:"store_bundle,omitempty"`
 	} `json:"item_sets"`
 	AttributeControlledAttachedParticles []struct {
 		System           string `json:"system"`
 		ID               int    `json:"id"`
-		AttachToRootbone bool   `json:"attach_to_rootbone"`
+		AttachToRootBone bool   `json:"attach_to_rootbone"`
 		Name             string `json:"name"`
 		Attachment       string `json:"attachment,omitempty"`
 	} `json:"attribute_controlled_attached_particles"`
@@ -601,23 +615,19 @@ type SchemaOverview struct {
 
 // GetSchemaOverview undocumented newer endpoints, replaces GetSchema
 // https://github.com/SteamDatabase/SteamTracking/commit/e71a1cd100dc7f35f3f26e94f1bf58e6ce9957c4
-func GetSchemaOverview(appID steamid.AppID) (*SchemaOverview, error) {
+func GetSchemaOverview(ctx context.Context, appID steamid.AppID) (*SchemaOverview, error) {
 	type response struct {
 		Result SchemaOverview `json:"result"`
 	}
-	cv, valid := cache.get(ckSchemaOverview)
-	if valid {
-		return cv.(*SchemaOverview), nil
-	}
 	var r response
-	err := apiRequest(fmt.Sprintf("/IEconItems_%d/GetSchemaOverview/v0001/", appID), url.Values{}, &r)
+	err := apiRequest(ctx, fmt.Sprintf("/IEconItems_%d/GetSchemaOverview/v0001/", appID), url.Values{}, &r)
 	if err != nil {
 		return nil, err
 	}
-	cache.set(ckSchemaOverview, &r.Result)
 	return &r.Result, nil
 }
 
+// SchemaItemCapabilities contains what the items capabilities are
 type SchemaItemCapabilities struct {
 	Paintable           bool `json:"paintable"`
 	Nameable            bool `json:"nameable"`
@@ -633,19 +643,22 @@ type SchemaItemCapabilities struct {
 	CanConsume          bool `json:"can_consume"`
 }
 
+// SchemaItemStyles contains the name for a style choice
 type SchemaItemStyles struct {
 	Name string `json:"name"`
 }
 
+// SchemaAttributes contains extra attributes
 type SchemaAttributes struct {
-	Name  string      `json:"name"`
-	Class string      `json:"class"`
-	Value interface{} `json:"value"`
+	Name  string `json:"name"`
+	Class string `json:"class"`
+	Value any    `json:"value"`
 }
 
+// SchemaItem is an item in the game
 type SchemaItem struct {
 	Name              string                 `json:"name"`
-	Defindex          int                    `json:"defindex"`
+	DefIndex          int                    `json:"defindex"`
 	ItemClass         string                 `json:"item_class"`
 	ItemTypeName      string                 `json:"item_type_name"`
 	ItemName          string                 `json:"item_name"`
@@ -655,8 +668,8 @@ type SchemaItem struct {
 	ModelPlayer       string                 `json:"model_player"`
 	ItemQuality       int                    `json:"item_quality"`
 	ImageInventory    string                 `json:"image_inventory"`
-	MinIlevel         int                    `json:"min_ilevel"`
-	MaxIlevel         int                    `json:"max_ilevel"`
+	MinILevel         int                    `json:"min_ilevel"`
+	MaxILevel         int                    `json:"max_ilevel"`
 	ImageURL          string                 `json:"image_url"`
 	ImageURLLarge     string                 `json:"image_url_large"`
 	DropType          string                 `json:"drop_type,omitempty"`
@@ -671,7 +684,7 @@ type SchemaItem struct {
 // GetSchemaItems undocumented newer endpoints
 // All paged results are fetched and merged
 // https://github.com/SteamDatabase/SteamTracking/commit/e71a1cd100dc7f35f3f26e94f1bf58e6ce9957c4
-func GetSchemaItems(appID steamid.AppID) ([]SchemaItem, error) {
+func GetSchemaItems(ctx context.Context, appID steamid.AppID) ([]SchemaItem, error) {
 	type response struct {
 		Result struct {
 			Status       int          `json:"status"`
@@ -680,17 +693,13 @@ func GetSchemaItems(appID steamid.AppID) ([]SchemaItem, error) {
 			Next         int          `json:"next"`
 		} `json:"result"`
 	}
-	cv, valid := cache.get(ckSchemaItems)
-	if valid {
-		return cv.([]SchemaItem), nil
-	}
 	var (
 		items []SchemaItem
 		page  = 0
 	)
 	for {
 		var r response
-		err := apiRequest(fmt.Sprintf("/IEconItems_%d/GetSchemaItems/v1/", appID), url.Values{
+		err := apiRequest(ctx, fmt.Sprintf("/IEconItems_%d/GetSchemaItems/v1/", appID), url.Values{
 			"start": []string{fmt.Sprintf("%d", page)},
 		}, &r)
 		if err != nil {
@@ -702,34 +711,29 @@ func GetSchemaItems(appID steamid.AppID) ([]SchemaItem, error) {
 		items = append(items, r.Result.Items...)
 		page = r.Result.Next
 	}
-	cache.set(ckSchemaItems, items, 3600)
 	return items, nil
 }
 
 // GetSchemaURL Returns a URL for the games' item_game.txt file.
-func GetSchemaURL(appID steamid.AppID) (string, error) {
+func GetSchemaURL(ctx context.Context, appID steamid.AppID) (string, error) {
 	type response struct {
 		Result struct {
 			Status       int    `json:"status"`
 			ItemsGameURL string `json:"items_game_url"`
 		} `json:"result"`
 	}
-	cv, valid := cache.get(ckSchemaURL)
-	if valid {
-		return cv.(string), nil
-	}
 	var r response
-	err := apiRequest(fmt.Sprintf("/IEconItems_%d/GetSchemaURL/v0001/", appID), url.Values{}, &r)
+	err := apiRequest(ctx, fmt.Sprintf("/IEconItems_%d/GetSchemaURL/v0001/", appID), url.Values{}, &r)
 	if err != nil {
 		return "", err
 	}
 	if r.Result.Status != 1 {
 		return "", ErrInvalidResponse
 	}
-	cache.set(ckSchemaURL, r.Result.ItemsGameURL, 3600)
 	return r.Result.ItemsGameURL, nil
 }
 
+// Banners defines banners used in the store
 type Banners struct {
 	BaseFilename string `json:"basefilename"`
 	Action       string `json:"action"`
@@ -737,16 +741,19 @@ type Banners struct {
 	ActionParam  string `json:"action_param"`
 }
 
+// CarouselData contains banners to display in store
 type CarouselData struct {
 	MaxDisplayBanners int       `json:"max_display_banners"`
 	Banners           []Banners `json:"banners"`
 }
 
+// Children defines a child element
 type Children struct {
 	Name string `json:"name"`
 	ID   string `json:"id"`
 }
 
+// Tabs defines the store tabs avail
 type Tabs struct {
 	Label            string     `json:"label"`
 	ID               string     `json:"id"`
@@ -759,17 +766,20 @@ type Tabs struct {
 	ParentName       string     `json:"parent_name,omitempty"`
 }
 
+// AllElement is an all element
 type AllElement struct {
 	ID            int    `json:"id"`
 	LocalizedText string `json:"localized_text"`
 }
 
+// Elements is a basic ui element
 type Elements struct {
-	Name          interface{} `json:"name"`
-	LocalizedText string      `json:"localized_text"`
-	ID            int         `json:"id"`
+	Name          any    `json:"name"`
+	LocalizedText string `json:"localized_text"`
+	ID            int    `json:"id"`
 }
 
+// Filters defines user data filters
 type Filters struct {
 	ID                  int        `json:"id"`
 	Name                string     `json:"name"`
@@ -779,6 +789,7 @@ type Filters struct {
 	Count               int        `json:"count"`
 }
 
+// Sorters defines different sort fields
 type Sorters struct {
 	ID            int64  `json:"id"`
 	Name          string `json:"name"`
@@ -788,10 +799,12 @@ type Sorters struct {
 	LocalizedText string `json:"localized_text"`
 }
 
+// SorterIds base id for tracking sorting
 type SorterIds struct {
 	ID int64 `json:"id"`
 }
 
+// SortingPrefabs has prefabs sorting details
 type SortingPrefabs struct {
 	ID                  int64       `json:"id"`
 	Name                string      `json:"name"`
@@ -799,11 +812,13 @@ type SortingPrefabs struct {
 	SorterIds           []SorterIds `json:"sorter_ids"`
 }
 
+// Sorting defines current sorting
 type Sorting struct {
 	Sorters        []Sorters        `json:"sorters"`
 	SortingPrefabs []SortingPrefabs `json:"sorting_prefabs"`
 }
 
+// Dropdowns contains store dropdowns
 type Dropdowns struct {
 	ID                  int    `json:"id"`
 	Name                string `json:"name"`
@@ -812,6 +827,7 @@ type Dropdowns struct {
 	URLHistoryParamName string `json:"url_history_param_name"`
 }
 
+// Config is the prefab config
 type Config struct {
 	DropdownID         int    `json:"dropdown_id"`
 	Name               string `json:"name"`
@@ -819,33 +835,39 @@ type Config struct {
 	DefaultSelectionID int    `json:"default_selection_id"`
 }
 
+// Prefabs is for handling store prefabs
 type Prefabs struct {
 	ID     int64    `json:"id"`
 	Name   string   `json:"name"`
 	Config []Config `json:"config"`
 }
 
+// DropdownData contains dropdown info
 type DropdownData struct {
 	Dropdowns []Dropdowns `json:"dropdowns"`
 	Prefabs   []Prefabs   `json:"prefabs"`
 }
 
+// PlayerClassData contains base class info
 type PlayerClassData struct {
 	ID            int    `json:"id"`
 	BaseName      string `json:"base_name"`
 	LocalizedText string `json:"localized_text"`
 }
 
+// PopularItems defines the item ordering
 type PopularItems struct {
 	DefIndex int `json:"def_index"`
 	Order    int `json:"order"`
 }
 
+// HomePageData shows popular items for home page
 type HomePageData struct {
 	HomeCategoryID int            `json:"home_category_id"`
 	PopularItems   []PopularItems `json:"popular_items"`
 }
 
+// StoreMetaData is the parent store container for an app
 type StoreMetaData struct {
 	CarouselData    CarouselData      `json:"carousel_data"`
 	Tabs            []Tabs            `json:"tabs"`
@@ -857,30 +879,27 @@ type StoreMetaData struct {
 }
 
 // GetStoreMetaData Returns a URL for the games' item_game.txt file.
-func GetStoreMetaData(appID steamid.AppID) (*StoreMetaData, error) {
+func GetStoreMetaData(ctx context.Context, appID steamid.AppID) (*StoreMetaData, error) {
 	type response struct {
 		Result StoreMetaData `json:"result"`
 	}
-	cv, valid := cache.get(ckStoreMetaData)
-	if valid {
-		return cv.(*StoreMetaData), nil
-	}
 	var r response
-	err := apiRequest(fmt.Sprintf("/IEconItems_%d/GetStoreMetaData/v0001/", appID), url.Values{}, &r)
+	err := apiRequest(ctx, fmt.Sprintf("/IEconItems_%d/GetStoreMetaData/v0001/", appID), url.Values{}, &r)
 	if err != nil {
 		return nil, err
 	}
-	cache.set(ckStoreMetaData, &r.Result)
 	return &r.Result, nil
 }
 
+// SupportedAPIMethods returns known api methods
 type SupportedAPIMethods struct {
 	Name       string                  `json:"name"`
 	Version    int                     `json:"version"`
-	HttpMethod string                  `json:"httpmethod"`
+	HTTPMethod string                  `json:"httpmethod"`
 	Parameters []SupportedAPIParameter `json:"parameters"`
 }
 
+// SupportedAPIParameterType defines a typed API parameter
 type SupportedAPIParameterType string
 
 //goland:noinspection GoUnusedConst
@@ -890,6 +909,7 @@ const (
 	PTUint64 SupportedAPIParameterType = "uint64"
 )
 
+// SupportedAPIParameter returns api parameters
 type SupportedAPIParameter struct {
 	Name        string                    `json:"name"`
 	Type        SupportedAPIParameterType `json:"type"`
@@ -897,36 +917,32 @@ type SupportedAPIParameter struct {
 	Description string                    `json:"description"`
 }
 
+// SupportedAPIInterfaces returns known api methods
 type SupportedAPIInterfaces struct {
 	Name    string                `json:"name"`
 	Methods []SupportedAPIMethods `json:"methods"`
 }
 
 // GetSupportedAPIList Lists all available WebAPI interfaces.
-func GetSupportedAPIList() ([]SupportedAPIInterfaces, error) {
+func GetSupportedAPIList(ctx context.Context) ([]SupportedAPIInterfaces, error) {
 	type response struct {
 		Apilist struct {
 			Interfaces []SupportedAPIInterfaces `json:"interfaces"`
 		} `json:"apilist"`
 	}
-	cv, valid := cache.get(ckAPIList)
-	if valid {
-		return cv.([]SupportedAPIInterfaces), nil
-	}
 	var r response
-	err := apiRequest("/ISteamWebAPIUtil/GetSupportedAPIList/v0001/", url.Values{}, &r)
+	err := apiRequest(ctx, "/ISteamWebAPIUtil/GetSupportedAPIList/v0001/", url.Values{}, &r)
 	if err != nil {
 		return nil, err
 	}
-	cache.set(ckAPIList, r.Apilist.Interfaces)
 	return r.Apilist.Interfaces, nil
 }
 
-// ResolveVanityURL Resolve vanity URL parts to a 64 bit ID
-func ResolveVanityURL(query string) (steamid.SID64, error) {
+// ResolveVanityURL Resolve vanity URL parts to a 64-bit ID
+func ResolveVanityURL(ctx context.Context, query string) (steamid.SID64, error) {
 	type response struct {
 		Response struct {
-			Steamid steamid.SID64 `json:"steamid"`
+			SteamID steamid.SID64 `json:"steamid"`
 			Success int           `json:"success"`
 		} `json:"response"`
 	}
@@ -951,15 +967,15 @@ func ResolveVanityURL(query string) (steamid.SID64, error) {
 		query = query[strings.Index(query, "steamcommunity.com/id/")+len("steamcommunity.com/id/"):]
 	}
 	var r response
-	err := apiRequest("/ISteamUser/ResolveVanityURL/v0001/", url.Values{"vanityurl": []string{query}}, &r)
+	err := apiRequest(ctx, "/ISteamUser/ResolveVanityURL/v0001/", url.Values{"vanityurl": []string{query}}, &r)
 	if err != nil {
 		return 0, err
 	}
-	return r.Response.Steamid, nil
+	return r.Response.SteamID, nil
 }
 
 // GetSteamLevel Lists all available WebAPI interfaces.
-func GetSteamLevel(sid steamid.SID64) (int, error) {
+func GetSteamLevel(ctx context.Context, sid steamid.SID64) (int, error) {
 	type response struct {
 		Response struct {
 			// The steam level of the player.
@@ -967,7 +983,7 @@ func GetSteamLevel(sid steamid.SID64) (int, error) {
 		} `json:"response"`
 	}
 	var r response
-	err := apiRequest("/IPlayerService/GetSteamLevel/v1/", url.Values{
+	err := apiRequest(ctx, "/IPlayerService/GetSteamLevel/v1/", url.Values{
 		"steamid": []string{sid.String()},
 	}, &r)
 	if err != nil {
@@ -976,8 +992,9 @@ func GetSteamLevel(sid steamid.SID64) (int, error) {
 	return r.Response.PlayerLevel, nil
 }
 
+// RecentGame contains high level info about one of the users recent games
 type RecentGame struct {
-	Appid                  steamid.AppID `json:"appid"`
+	AppID                  steamid.AppID `json:"appid"`
 	Name                   string        `json:"name"`
 	Playtime2Weeks         int           `json:"playtime_2weeks"`
 	PlaytimeForever        int           `json:"playtime_forever"`
@@ -990,7 +1007,7 @@ type RecentGame struct {
 
 // GetRecentlyPlayedGames Lists recently played games
 // No results returned is usually due to privacy settings
-func GetRecentlyPlayedGames(sid steamid.SID64) ([]RecentGame, error) {
+func GetRecentlyPlayedGames(ctx context.Context, sid steamid.SID64) ([]RecentGame, error) {
 	type response struct {
 		Response struct {
 			TotalCount int          `json:"total_count"`
@@ -998,7 +1015,7 @@ func GetRecentlyPlayedGames(sid steamid.SID64) ([]RecentGame, error) {
 		} `json:"response"`
 	}
 	var r response
-	err := apiRequest("/IPlayerService/GetRecentlyPlayedGames/v1", url.Values{
+	err := apiRequest(ctx, "/IPlayerService/GetRecentlyPlayedGames/v1", url.Values{
 		"steamid": []string{sid.String()},
 		"count":   []string{"10"},
 	}, &r)
@@ -1008,12 +1025,13 @@ func GetRecentlyPlayedGames(sid steamid.SID64) ([]RecentGame, error) {
 	return r.Response.Games, nil
 }
 
+// OwnedGame contains metadata about a users owned game
 type OwnedGame struct {
 	// An integer containing the program's ID.
-	Appid steamid.AppID `json:"appid"`
+	AppID steamid.AppID `json:"appid"`
 	// A string containing the program's publicly facing title.
 	Name string `json:"name"`
-	// An integer of the the player's total playtime, denoted in minutes.
+	// An integer of the player's total playtime, denoted in minutes.
 	PlaytimeForever int `json:"playtime_forever"`
 	// The program icon's file name see: IconURL
 	ImgIconURL string `json:"img_icon_url"`
@@ -1027,17 +1045,19 @@ type OwnedGame struct {
 	Playtime2Weeks int `json:"playtime_2weeks,omitempty"`
 }
 
+// IconURL returns an url to the game icon image
 func (g OwnedGame) IconURL() string {
-	return fmt.Sprintf("https://media.steampowered.com/steamcommunity/public/images/apps/%d/%s.jpg", g.Appid, g.ImgIconURL)
+	return fmt.Sprintf("https://media.steampowered.com/steamcommunity/public/images/apps/%d/%s.jpg", g.AppID, g.ImgIconURL)
 }
 
+// LogoURL returns an url to the game logo image
 func (g OwnedGame) LogoURL() string {
-	return fmt.Sprintf("https://media.steampowered.com/steamcommunity/public/images/apps/%d/%s.jpg", g.Appid, g.ImgLogoURL)
+	return fmt.Sprintf("https://media.steampowered.com/steamcommunity/public/images/apps/%d/%s.jpg", g.AppID, g.ImgLogoURL)
 }
 
 // GetOwnedGames Lists all owned games
 // No results returned is usually due to privacy settings
-func GetOwnedGames(sid steamid.SID64) ([]OwnedGame, error) {
+func GetOwnedGames(ctx context.Context, sid steamid.SID64) ([]OwnedGame, error) {
 	type response struct {
 		Response struct {
 			GameCount int         `json:"game_count"`
@@ -1045,7 +1065,7 @@ func GetOwnedGames(sid steamid.SID64) ([]OwnedGame, error) {
 		} `json:"response"`
 	}
 	var r response
-	err := apiRequest("/IPlayerService/GetOwnedGames/v1", url.Values{
+	err := apiRequest(ctx, "/IPlayerService/GetOwnedGames/v1", url.Values{
 		"steamid":                   []string{sid.String()},
 		"include_appinfo":           []string{"true"},
 		"include_played_free_games": []string{"true"},
@@ -1056,9 +1076,10 @@ func GetOwnedGames(sid steamid.SID64) ([]OwnedGame, error) {
 	return r.Response.Games, nil
 }
 
+// Badge is a badge belonging to a user
 type Badge struct {
-	// BadgeID. Currently no official badge schema is available.
-	BadgeId int `json:"badgeid"`
+	// BadgeID. currently no official badge schema is available.
+	BadgeID int `json:"badgeid"`
 	Level   int `json:"level"`
 	// Unix timestamp of when the steam user acquired the badge.
 	CompletionTime int `json:"completion_time"`
@@ -1067,15 +1088,16 @@ type Badge struct {
 	// The amount of people who has this badge.
 	Scarcity int `json:"scarcity"`
 	// Provided if the badge relates to an app (trading cards).
-	Appid steamid.AppID `json:"appid,omitempty"`
+	AppID steamid.AppID `json:"appid,omitempty"`
 	// Provided if the badge relates to an app (trading cards); the value doesn't seem to be an item
 	// in the steam accounts backpack, however the value minus 1 seems to be the item ID for the
 	// emoticon granted for crafting this badge, and the value minus 2 seems to be the background granted.
-	CommunityItemId string `json:"communityitemid,omitempty"`
+	CommunityItemID string `json:"communityitemid,omitempty"`
 	// Provided if the badge relates to an app (trading cards).
 	BorderColor int `json:"border_color,omitempty"`
 }
 
+// BadgeStatus contains the current progress on the badge
 type BadgeStatus struct {
 	Badges                     []Badge `json:"badges"`
 	PlayerXp                   int     `json:"player_xp"`
@@ -1086,12 +1108,12 @@ type BadgeStatus struct {
 
 // GetBadges Lists all badges for a user
 // No results returned is usually due to privacy settings
-func GetBadges(sid steamid.SID64) (*BadgeStatus, error) {
+func GetBadges(ctx context.Context, sid steamid.SID64) (*BadgeStatus, error) {
 	type response struct {
 		Response BadgeStatus `json:"response"`
 	}
 	var r response
-	err := apiRequest("/IPlayerService/GetBadges/v1", url.Values{
+	err := apiRequest(ctx, "/IPlayerService/GetBadges/v1", url.Values{
 		"steamid": []string{sid.String()},
 	}, &r)
 	if err != nil {
@@ -1100,16 +1122,17 @@ func GetBadges(sid steamid.SID64) (*BadgeStatus, error) {
 	return &r.Response, nil
 }
 
+// BadgeQuestStatus tracks if the user has completed a badge quest
 type BadgeQuestStatus struct {
 	// Quest ID; no schema is currently available.
-	QuestId int `json:"questid"`
+	QuestID int `json:"questid"`
 	// Whether the steam account has completed this quest.
 	Completed bool `json:"completed"`
 }
 
 // GetCommunityBadgeProgress Lists all badges for a user
 // No results returned is usually due to privacy settings
-func GetCommunityBadgeProgress(sid steamid.SID64) ([]BadgeQuestStatus, error) {
+func GetCommunityBadgeProgress(ctx context.Context, sid steamid.SID64) ([]BadgeQuestStatus, error) {
 	type response struct {
 		Response struct {
 			// Array of quests (actions required to unlock a badge)
@@ -1117,7 +1140,7 @@ func GetCommunityBadgeProgress(sid steamid.SID64) ([]BadgeQuestStatus, error) {
 		} `json:"response"`
 	}
 	var r response
-	err := apiRequest("/IPlayerService/GetCommunityBadgeProgress/v1", url.Values{
+	err := apiRequest(ctx, "/IPlayerService/GetCommunityBadgeProgress/v1", url.Values{
 		"steamid": []string{sid.String()},
 	}, &r)
 	if err != nil {
@@ -1126,27 +1149,28 @@ func GetCommunityBadgeProgress(sid steamid.SID64) ([]BadgeQuestStatus, error) {
 	return r.Response.Quests, nil
 }
 
+// Asset is an in game asset
 type Asset struct {
 	//Descriptions []struct {
 	//	Name  string `json:"name" mapstructure:"name"`
 	//	Value string `json:"value" mapstructure:"value"`
 	//	Color string `json:"color,omitempty" mapstructure:"color"`
 	//} `json:"descriptions" mapstructure:"descriptions,omitempty"`
-	Descriptions    interface{} `json:"descriptions" mapstructure:"descriptions"`
-	Fraudwarnings   interface{} `json:"fraudwarnings" mapstructure:"fraudwarnings"`
-	Tradable        string      `json:"tradable" mapstructure:"tradable"`
-	BackgroundColor string      `json:"background_color" mapstructure:"background_color"`
-	IconURL         string      `json:"icon_url" mapstructure:"icon_url"`
-	Name            string      `json:"name" mapstructure:"name"`
-	Type            string      `json:"type" mapstructure:"type"`
-	NameColor       string      `json:"name_color" mapstructure:"name_color"`
-	Actions         interface{} `json:"actions" mapstructure:"actions"`
+	Descriptions    any    `json:"descriptions" mapstructure:"descriptions"`
+	FraudWarnings   any    `json:"fraudwarnings" mapstructure:"fraudwarnings"`
+	Tradable        string `json:"tradable" mapstructure:"tradable"`
+	BackgroundColor string `json:"background_color" mapstructure:"background_color"`
+	IconURL         string `json:"icon_url" mapstructure:"icon_url"`
+	Name            string `json:"name" mapstructure:"name"`
+	Type            string `json:"type" mapstructure:"type"`
+	NameColor       string `json:"name_color" mapstructure:"name_color"`
+	Actions         any    `json:"actions" mapstructure:"actions"`
 }
 
 // GetAssetClassInfo gets info on items/assets
-func GetAssetClassInfo(appID steamid.AppID, classIds []int) ([]Asset, error) {
+func GetAssetClassInfo(ctx context.Context, appID steamid.AppID, classIds []int) ([]Asset, error) {
 	type response struct {
-		Result map[string]interface{} `json:"result"`
+		Result map[string]any `json:"result"`
 	}
 	v := url.Values{
 		"appid": []string{fmt.Sprintf("%d", appID)},
@@ -1162,7 +1186,7 @@ func GetAssetClassInfo(appID steamid.AppID, classIds []int) ([]Asset, error) {
 		v.Set(fmt.Sprintf("classid%d", i), fmt.Sprintf("%d", classIds[i]))
 	}
 	var r response
-	err := apiRequest("/ISteamEconomy/GetAssetClassInfo/v0001", v, &r)
+	err := apiRequest(ctx, "/ISteamEconomy/GetAssetClassInfo/v0001", v, &r)
 	if err != nil {
 		return nil, err
 	}
@@ -1182,14 +1206,17 @@ func GetAssetClassInfo(appID steamid.AppID, classIds []int) ([]Asset, error) {
 	return assets, nil
 }
 
-func GetGroupMembers(ctx context.Context, groupId steamid.GID) (steamid.Collection, error) {
+// GetGroupMembers fetches all steamids that belong to a steam group.
+// WARN: This does not use the actual steam api and instead fetches and parses the groups XML data. This endpoint
+// is far more heavily rate limited by steam.
+func GetGroupMembers(ctx context.Context, groupID steamid.GID) (steamid.Collection, error) {
 	rx := regexp.MustCompile(`<steamID64>(\d+)</steamID64>`)
-	if !groupId.Valid() {
+	if !groupID.Valid() {
 		return nil, errors.New("Invalid steam group ID")
 	}
 	lCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
-	req, reqErr := http.NewRequestWithContext(lCtx, "GET", fmt.Sprintf("https://steamcommunity.com/gid/%d/memberslistxml/?xml=1", groupId), nil)
+	req, reqErr := http.NewRequestWithContext(lCtx, "GET", fmt.Sprintf("https://steamcommunity.com/gid/%d/memberslistxml/?xml=1", groupID), nil)
 	if reqErr != nil {
 		return nil, errors.Wrapf(reqErr, "Failed to create request")
 	}
