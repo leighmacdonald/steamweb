@@ -52,24 +52,28 @@ A golang library for querying the [steam webapi](https://wiki.teamfortress.com/w
   - [x] GetGroupMembers - Return a list of steamids belonging to a steam group
 
 ## Example Usage
+```go
+package main
 
-    import (
-        "fmt"
-        "github.com/leighmacdonald/steamweb"
-        "os"
-    )
+import (
+  "context"
+  "fmt"
+  "github.com/leighmacdonald/steamid/v2/steamid"
+  "github.com/leighmacdonald/steamweb/v2"
+  "os"
+)
 
-    func main() {
-        // The env var STEAM_TOKEN can also be used to set the key instead of 
-        // calling SetKey directly.
-        if err := steamweb.SetKey("XXXXXXXXXXXXXXXXXXXXX"); err != nil {
-            fmt.Printf("Error setting steam key: %v", err)  
-            os.Exit(1)
-        }
-        ids := steamid.Collection{76561198132612090, testIDSquirrelly, 76561197960435530}
-	    summaries, _ := steamweb.PlayerSummaries(ids)
-        for _, summary := range summaries {
-            fmt.Println(summary)        
-        }
+func main() {
+    // The env var STEAM_TOKEN can also be used to set the key instead of 
+    // calling SetKey directly.
+    if err := steamweb.SetKey("XXXXXXXXXXXXXXXXXXXXX"); err != nil {
+        fmt.Printf("Error setting steam key: %v", err)  
+        os.Exit(1)
     }
-
+    ids := steamid.Collection{76561198132612090, testIDSquirrelly, 76561197960435530}
+    summaries, _ := steamweb.PlayerSummaries(context.Background(), ids)
+    for _, summary := range summaries {
+        fmt.Println(summary)        
+    }
+}
+```
