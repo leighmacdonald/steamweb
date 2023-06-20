@@ -277,12 +277,12 @@ type ServerAtAddress struct {
 	Addr     string        `json:"addr"`
 	GmsIndex int           `json:"gmsindex"`
 	AppID    steamid.AppID `json:"appid"`
-	Gamedir  string        `json:"gamedir"`
+	GameDir  string        `json:"gamedir"`
 	Region   int           `json:"region"`
 	Secure   bool          `json:"secure"`
 	Lan      bool          `json:"lan"`
-	Gameport int           `json:"gameport"`
-	Specport int           `json:"specport"`
+	GamePort int           `json:"gameport"`
+	SpecPort int           `json:"specport"`
 }
 
 // GetServersAtAddress Shows all steam-compatible servers related to a IPv4 Address.
@@ -303,6 +303,50 @@ func GetServersAtAddress(ctx context.Context, ipAddr net.IP) ([]ServerAtAddress,
 	if !r.Response.Success {
 		return nil, errors.New("Invalid response")
 	}
+	return r.Response.Servers, nil
+}
+
+// Server contains details for servers returned from the master server list
+type Server struct {
+	Addr       string `json:"addr"`
+	GamePort   int    `json:"gameport"`
+	Steamid    string `json:"steamid"`
+	Name       string `json:"name"`
+	Appid      int    `json:"appid"`
+	GameDir    string `json:"gamedir"`
+	Version    string `json:"version"`
+	Product    string `json:"product"`
+	Region     int    `json:"region"`
+	Players    int    `json:"players"`
+	MaxPlayers int    `json:"max_players"`
+	Bots       int    `json:"bots"`
+	Map        string `json:"map"`
+	Secure     bool   `json:"secure"`
+	Dedicated  bool   `json:"dedicated"`
+	Os         string `json:"os"`
+	GameType   string `json:"gametype"`
+}
+
+// GetServerList Shows all steam-compatible servers
+func GetServerList(ctx context.Context, filters map[string]string) ([]Server, error) {
+	type response struct {
+		Response struct {
+			Servers []Server `json:"servers"`
+		} `json:"response"`
+	}
+	var r response
+	filterStr := ""
+	for k, v := range filters {
+		filterStr += fmt.Sprintf("\\%s\\%s", k, v)
+	}
+	err := apiRequest(ctx, "/IGameServersService/GetServerList/v1", url.Values{
+		"filter": []string{filterStr},
+		"limit":  []string{"25000"},
+	}, &r)
+	if err != nil {
+		return nil, err
+	}
+
 	return r.Response.Servers, nil
 }
 
@@ -1001,12 +1045,12 @@ type OwnedGame struct {
 	Playtime2Weeks int `json:"playtime_2weeks,omitempty"`
 }
 
-// IconURL returns a url to the game icon image
+// IconURL returns an url to the game icon image
 func (g OwnedGame) IconURL() string {
 	return fmt.Sprintf("https://media.steampowered.com/steamcommunity/public/images/apps/%d/%s.jpg", g.AppID, g.ImgIconURL)
 }
 
-// LogoURL returns a url to the game logo image
+// LogoURL returns an url to the game logo image
 func (g OwnedGame) LogoURL() string {
 	return fmt.Sprintf("https://media.steampowered.com/steamcommunity/public/images/apps/%d/%s.jpg", g.AppID, g.ImgLogoURL)
 }
