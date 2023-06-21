@@ -144,25 +144,71 @@ func apiRequest(ctx context.Context, path string, values url.Values, target any)
 	return nil
 }
 
+// PersonaState is the user's current account status.
+type PersonaState int
+
+// PersonaState options
+const (
+	StateOffline PersonaState = iota // 0 on private profile
+	StateOnline
+	StateBusy
+	StateAway
+	StateSnooze
+	StateLookingForTrade
+	StateLookingToPlay
+)
+
+// ProfileState indicates the user has a community profile configured
+type ProfileState int
+
+// ProfileState options
+const (
+	ProfileStateNew ProfileState = iota
+	ProfileStateConfigured
+)
+
+// VisibilityState represents whether the profile is visible or not, and if it is visible, why you are allowed to
+// see it. Note that because this WebAPI does not use authentication, there are only two possible values
+// returned: 1 - the profile is not visible to you (Private, Friends Only, etc), 3 - the profile is
+// "Public", and the data is visible
+type VisibilityState int
+
+// VisibilityState options
+const (
+	VisibilityPrivate VisibilityState = iota + 1
+	VisibilityFriends
+	VisibilityPublic
+)
+
 // PlayerSummary is the unaltered player summary from the steam official API
 type PlayerSummary struct {
-	SteamID                  steamid.SID64 `json:"steamid"`
-	CommunityVisibilityState int           `json:"communityvisibilitystate"`
-	ProfileState             int           `json:"profilestate"`
-	PersonaName              string        `json:"personaname"`
-	ProfileURL               string        `json:"profileurl"`
-	Avatar                   string        `json:"avatar"`
-	AvatarMedium             string        `json:"avatarmedium"`
-	AvatarFull               string        `json:"avatarfull"`
-	AvatarHash               string        `json:"avatarhash"`
-	PersonaState             int           `json:"personastate"`
-	RealName                 string        `json:"realname"`
-	PrimaryClanID            string        `json:"primaryclanid"`
-	TimeCreated              int           `json:"timecreated"`
-	PersonaStateFlags        int           `json:"personastateflags"`
-	LocCountryCode           string        `json:"loccountrycode"`
-	LocStateCode             string        `json:"locstatecode"`
-	LocCityID                int           `json:"loccityid"`
+	SteamID                  steamid.SID64   `json:"steamid"`
+	CommunityVisibilityState VisibilityState `json:"communityvisibilitystate"`
+	ProfileState             ProfileState    `json:"profilestate"`
+	PersonaName              string          `json:"personaname"`
+	ProfileURL               string          `json:"profileurl"`
+	Avatar                   string          `json:"avatar"`
+	AvatarMedium             string          `json:"avatarmedium"`
+	AvatarFull               string          `json:"avatarfull"`
+	AvatarHash               string          `json:"avatarhash"`
+	PersonaState             PersonaState    `json:"personastate"`
+	RealName                 string          `json:"realname"`
+	PrimaryClanID            string          `json:"primaryclanid"`
+	TimeCreated              int             `json:"timecreated"`
+	// Bitmask
+	// 1: 'Offline',
+	// 2: 'Online',
+	// 4: 'Golden',
+	// 64: 'Online using Big Picture',
+	// 256: 'Online using Web Client',
+	// 512: 'Online using Mobile',
+	// 1024: 'Online using Steam Controller'
+	PersonaStateFlags int    `json:"personastateflags"`
+	LocCountryCode    string `json:"loccountrycode"`
+	LocStateCode      string `json:"locstatecode"`
+	LocCityID         int    `json:"loccityid"`
+	LastLogoff        int    `json:"lastlogoff"`
+	CommentPermission int    `json:"commentpermission"`
 }
 
 // PlayerSummaries will call GetPlayerSummaries on the valve WebAPI returning the players
@@ -191,6 +237,16 @@ func PlayerSummaries(ctx context.Context, steamIDs steamid.Collection) ([]Player
 	return r.Response.Players, err
 }
 
+// EconBanState  holds the users current economy ban status
+type EconBanState string
+
+// EconBanState values
+const (
+	EconBanNone      EconBanState = "none"
+	EconBanProbation EconBanState = "probation"
+	EconBanBanned    EconBanState = "banned"
+)
+
 // PlayerBanState contains a players current account ban status
 type PlayerBanState struct {
 	SteamID          steamid.SID64 `json:"SteamId"`
@@ -199,7 +255,7 @@ type PlayerBanState struct {
 	NumberOfVACBans  int           `json:"NumberOfVACBans"`
 	DaysSinceLastBan int           `json:"DaysSinceLastBan"`
 	NumberOfGameBans int           `json:"NumberOfGameBans"`
-	EconomyBan       string        `json:"EconomyBan"`
+	EconomyBan       EconBanState  `json:"EconomyBan"`
 }
 
 // GetPlayerBans fetches a players known steam bans. This includes bans that have "aged out" and are hidden on profiles.
