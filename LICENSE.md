@@ -1,6 +1,6 @@
 The MIT License
 
-Copyright (c) 2021 Leigh MacDonald
+Copyright (c) 2021-2023 Leigh MacDonald
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

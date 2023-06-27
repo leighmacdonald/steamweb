@@ -58,7 +58,7 @@ package main
 import (
   "context"
   "fmt"
-  "github.com/leighmacdonald/steamid/v2/steamid"
+  "github.com/leighmacdonald/steamid/v3/steamid"
   "github.com/leighmacdonald/steamweb/v2"
   "os"
 )
@@ -70,7 +70,7 @@ func main() {
         fmt.Printf("Error setting steam key: %v", err)  
         os.Exit(1)
     }
-    ids := steamid.Collection{76561198132612090, testIDSquirrelly, 76561197960435530}
+    ids := steamid.Collection{steamid.New(76561198132612090), steamid.New(76561197960435530)}
     summaries, _ := steamweb.PlayerSummaries(context.Background(), ids)
     for _, summary := range summaries {
         fmt.Println(summary)        
