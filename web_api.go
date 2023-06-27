@@ -299,7 +299,7 @@ func GetUserGroupList(ctx context.Context, steamID steamid.SID64) ([]steamid.GID
 	}
 	var ids []steamid.GID
 	for _, v := range r.Response.Groups {
-		ids = append(ids, steamid.GID(v.Gid))
+		ids = append(ids, steamid.NewGID(v.Gid))
 	}
 	return ids, nil
 }
@@ -1010,12 +1010,12 @@ func ResolveVanityURL(ctx context.Context, query string) (steamid.SID64, error) 
 		}
 		output, err := strconv.ParseInt(query[strings.Index(query, purl)+len(purl):], 10, 64)
 		if err != nil {
-			return 0, errors.Wrapf(err, "Failed to parse int from query")
+			return steamid.SID64{}, errors.Wrapf(err, "Failed to parse int from query")
 		}
 		if len(strconv.FormatInt(output, 10)) != 17 {
-			return 0, errors.Wrapf(err, "Invalid string length")
+			return steamid.SID64{}, errors.Wrapf(err, "Invalid string length")
 		}
-		return steamid.SID64(output), nil
+		return steamid.New(output), nil
 	} else if strings.Contains(query, "steamcommunity.com/id/") {
 		if string(query[len(query)-1]) == "/" {
 			query = query[0 : len(query)-1]
@@ -1025,7 +1025,7 @@ func ResolveVanityURL(ctx context.Context, query string) (steamid.SID64, error) 
 	var r response
 	err := apiRequest(ctx, "/ISteamUser/ResolveVanityURL/v0001/", url.Values{"vanityurl": []string{query}}, &r)
 	if err != nil {
-		return 0, err
+		return steamid.SID64{}, err
 	}
 	return r.Response.SteamID, nil
 }
