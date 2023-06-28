@@ -3,7 +3,7 @@ module github.com/leighmacdonald/steamweb/v2
 go 1.20
 
 require (
-	github.com/leighmacdonald/steamid/v3 v3.0.2
+	github.com/leighmacdonald/steamid/v3 v3.0.3
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.3

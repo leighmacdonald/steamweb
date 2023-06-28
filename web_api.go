@@ -1430,7 +1430,8 @@ func GetGroupMembers(ctx context.Context, groupID steamid.GID) (steamid.Collecti
 	lCtx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
 	defer cancel()
 
-	req, reqErr := http.NewRequestWithContext(lCtx, http.MethodGet, fmt.Sprintf("https://steamcommunity.com/gid/%d/memberslistxml/?xml=1", groupID.Uint64()), nil)
+	req, reqErr := http.NewRequestWithContext(lCtx, http.MethodGet,
+		fmt.Sprintf("https://steamcommunity.com/gid/%d/memberslistxml/?xml=1", groupID.Int64()), nil)
 	if reqErr != nil {
 		return nil, errors.Wrapf(reqErr, "Failed to create request")
 	}
