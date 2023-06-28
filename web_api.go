@@ -1125,11 +1125,11 @@ func ResolveVanityURL(ctx context.Context, query string) (steamid.SID64, error) 
 
 		output, err := strconv.ParseInt(query[strings.Index(query, purl)+len(purl):], 10, 64)
 		if err != nil {
-			return steamid.SID64{}, errors.Wrapf(err, "Failed to parse int from query")
+			return "", errors.Wrapf(err, "Failed to parse int from query")
 		}
 
 		if len(strconv.FormatInt(output, 10)) != steam64Len {
-			return steamid.SID64{}, errors.Wrapf(err, "Invalid string length")
+			return "", errors.Wrapf(err, "Invalid string length")
 		}
 
 		return steamid.New(output), nil
@@ -1144,7 +1144,7 @@ func ResolveVanityURL(ctx context.Context, query string) (steamid.SID64, error) 
 
 	errResp := apiRequest(ctx, "/ISteamUser/ResolveVanityURL/v0001/", url.Values{"vanityurl": []string{query}}, &resp)
 	if errResp != nil {
-		return steamid.SID64{}, errResp
+		return "", errResp
 	}
 
 	return resp.Response.SteamID, nil
