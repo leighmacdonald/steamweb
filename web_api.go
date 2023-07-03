@@ -337,7 +337,7 @@ func GetUserGroupList(ctx context.Context, steamID steamid.SID64) ([]steamid.GID
 		Response struct {
 			Success bool `json:"success"`
 			Groups  []struct {
-				GID int64 `json:"gid,string"`
+				GID int64 `json:"gid"`
 			} `json:"groups"`
 		} `json:"response"`
 	}
