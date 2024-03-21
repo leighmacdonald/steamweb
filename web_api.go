@@ -372,7 +372,8 @@ func GetFriendList(ctx context.Context, steamID steamid.SteamID) ([]Friend, erro
 
 	var resp GetFriendListResponse
 	errResp := apiRequest(ctx, "/ISteamUser/GetFriendList/v1", url.Values{
-		"steamid": []string{steamID.String()},
+		"steamid":      []string{steamID.String()},
+		"relationship": []string{"friend"},
 	}, &resp)
 
 	if errResp != nil {
