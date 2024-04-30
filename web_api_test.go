@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 	"github.com/leighmacdonald/steamweb/v2"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -275,7 +275,7 @@ func TestGetRecentlyPlayedGames(t *testing.T) {
 func TestGetOwnedGames(t *testing.T) {
 	t.Parallel()
 
-	ownedGames, err := steamweb.GetOwnedGames(context.Background(), testIDDane)
+	ownedGames, err := steamweb.GetOwnedGames(context.Background(), testIDSquirrelly)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 
@@ -336,7 +336,7 @@ func TestGetAssetClassInfo(t *testing.T) {
 func TestGetGroupMembers(t *testing.T) {
 	t.Parallel()
 
-	groupMembers, err := steamweb.GetGroupMembers(context.TODO(), steamid.NewGID(103582791429521412))
+	groupMembers, err := steamweb.GetGroupMembers(context.TODO(), steamid.New(103582791429521412))
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
 

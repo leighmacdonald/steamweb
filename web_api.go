@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leighmacdonald/steamid/v3/steamid"
+	"github.com/leighmacdonald/steamid/v4/steamid"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 )
@@ -153,14 +153,13 @@ func apiRequest(ctx context.Context, path string, values url.Values, target any)
 		return errors.Wrap(errG, "Failed to perform http request")
 	}
 
-	body, errR := io.ReadAll(resp.Body)
-	if errR != nil {
-		return errors.Wrap(errR, "Failed to read response body")
-	}
-
 	defer func() {
 		_ = resp.Body.Close()
 	}()
+
+	if errU := json.NewDecoder(resp.Body).Decode(&target); errU != nil {
+		return errors.Wrap(errU, "Failed to decode JSON response")
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusServiceUnavailable {
@@ -168,10 +167,6 @@ func apiRequest(ctx context.Context, path string, values url.Values, target any)
 		}
 
 		return errors.Errorf("Invalid status code received: %d", resp.StatusCode)
-	}
-
-	if errU := json.Unmarshal(body, &target); errU != nil {
-		return errors.Wrap(errU, "Failed to decode JSON response")
 	}
 
 	return nil
@@ -221,7 +216,7 @@ const (
 
 // PlayerSummary is the unaltered player summary from the steam official API.
 type PlayerSummary struct {
-	SteamID                  steamid.SID64   `json:"steamid"`
+	SteamID                  steamid.SteamID `json:"steamid"`
 	CommunityVisibilityState VisibilityState `json:"communityvisibilitystate"`
 	ProfileState             ProfileState    `json:"profilestate"`
 	PersonaName              string          `json:"personaname"`
@@ -295,13 +290,13 @@ const (
 
 // PlayerBanState contains a players current account ban status.
 type PlayerBanState struct {
-	SteamID          steamid.SID64 `json:"SteamId"`
-	CommunityBanned  bool          `json:"CommunityBanned"`
-	VACBanned        bool          `json:"VACBanned"`
-	NumberOfVACBans  int           `json:"NumberOfVACBans"`
-	DaysSinceLastBan int           `json:"DaysSinceLastBan"`
-	NumberOfGameBans int           `json:"NumberOfGameBans"`
-	EconomyBan       EconBanState  `json:"EconomyBan"`
+	SteamID          steamid.SteamID `json:"SteamId"`
+	CommunityBanned  bool            `json:"CommunityBanned"`
+	VACBanned        bool            `json:"VACBanned"`
+	NumberOfVACBans  int             `json:"NumberOfVACBans"`
+	DaysSinceLastBan int             `json:"DaysSinceLastBan"`
+	NumberOfGameBans int             `json:"NumberOfGameBans"`
+	EconomyBan       EconBanState    `json:"EconomyBan"`
 }
 
 // GetPlayerBans fetches a players known steam bans. This includes bans that have "aged out" and are hidden on profiles.
@@ -332,7 +327,7 @@ func GetPlayerBans(ctx context.Context, steamIDs steamid.Collection) ([]PlayerBa
 }
 
 // GetUserGroupList returns a list of a users public groups.
-func GetUserGroupList(ctx context.Context, steamID steamid.SID64) ([]steamid.GID, error) {
+func GetUserGroupList(ctx context.Context, steamID steamid.SteamID) ([]steamid.SteamID, error) {
 	type GetUserGroupListResponse struct {
 		Response struct {
 			Success bool `json:"success"`
@@ -351,10 +346,10 @@ func GetUserGroupList(ctx context.Context, steamID steamid.SID64) ([]steamid.GID
 		return nil, errResp
 	}
 
-	ids := make([]steamid.GID, len(resp.Response.Groups))
+	ids := make([]steamid.SteamID, len(resp.Response.Groups))
 
 	for index, v := range resp.Response.Groups {
-		ids[index] = steamid.NewGID(v.GID)
+		ids[index] = steamid.New(v.GID)
 	}
 
 	return ids, nil
@@ -362,13 +357,13 @@ func GetUserGroupList(ctx context.Context, steamID steamid.SID64) ([]steamid.GID
 
 // Friend contains a known user friendship.
 type Friend struct {
-	SteamID      steamid.SID64 `json:"steamid"`
-	Relationship string        `json:"relationship"`
-	FriendSince  int           `json:"friend_since"`
+	SteamID      steamid.SteamID `json:"steamid"`
+	Relationship string          `json:"relationship"`
+	FriendSince  int             `json:"friend_since"`
 }
 
 // GetFriendList returns all the users friends if public.
-func GetFriendList(ctx context.Context, steamID steamid.SID64) ([]Friend, error) {
+func GetFriendList(ctx context.Context, steamID steamid.SteamID) ([]Friend, error) {
 	type GetFriendListResponse struct {
 		FriendsList struct {
 			Friends []Friend `json:"friends"`
@@ -377,7 +372,8 @@ func GetFriendList(ctx context.Context, steamID steamid.SID64) ([]Friend, error)
 
 	var resp GetFriendListResponse
 	errResp := apiRequest(ctx, "/ISteamUser/GetFriendList/v1", url.Values{
-		"steamid": []string{steamID.String()},
+		"steamid":      []string{steamID.String()},
+		"relationship": []string{"friend"},
 	}, &resp)
 
 	if errResp != nil {
@@ -517,18 +513,18 @@ type GetNewsForAppOptions struct {
 
 // NewsItem is an individual news entry.
 type NewsItem struct {
-	GID           steamid.GID `json:"gid"`
-	Title         string      `json:"title"`
-	URL           string      `json:"url"`
-	IsExternalURL bool        `json:"is_external_url"`
-	Author        string      `json:"author"`
-	Contents      string      `json:"contents"`
-	FeedLabel     string      `json:"feedlabel"`
-	Date          int         `json:"date"`
-	FeedName      string      `json:"feedname"`
-	FeedType      int         `json:"feed_type"`
-	Appid         int         `json:"appid"`
-	Tags          []string    `json:"tags,omitempty"`
+	GID           string   `json:"gid"`
+	Title         string   `json:"title"`
+	URL           string   `json:"url"`
+	IsExternalURL bool     `json:"is_external_url"`
+	Author        string   `json:"author"`
+	Contents      string   `json:"contents"`
+	FeedLabel     string   `json:"feedlabel"`
+	Date          int      `json:"date"`
+	FeedName      string   `json:"feedname"`
+	FeedType      int      `json:"feed_type"`
+	Appid         int      `json:"appid"`
+	Tags          []string `json:"tags,omitempty"`
 }
 
 // GetNewsForApp News feed for various games.
@@ -600,8 +596,8 @@ func GetNumberOfCurrentPlayers(ctx context.Context, appID steamid.AppID) (int, e
 
 // PlayerStats contains the users in-game stats as k/v pairs along with the achievements. Depends on account visibility.
 type PlayerStats struct {
-	SteamID  steamid.SID64 `json:"steamID"`
-	GameName string        `json:"gameName"`
+	SteamID  steamid.SteamID `json:"steamID"`
+	GameName string          `json:"gameName"`
 	Stats    []struct {
 		Name  string `json:"name"`
 		Value int    `json:"value"`
@@ -613,7 +609,7 @@ type PlayerStats struct {
 }
 
 // GetUserStatsForGame currently 500 status with valid requests.
-func GetUserStatsForGame(ctx context.Context, steamID steamid.SID64, appID steamid.AppID) (PlayerStats, error) {
+func GetUserStatsForGame(ctx context.Context, steamID steamid.SteamID, appID steamid.AppID) (PlayerStats, error) {
 	type response struct {
 		PlayerStats PlayerStats `json:"playerstats"`
 	}
@@ -656,7 +652,7 @@ type InventoryItem struct {
 
 // GetPlayerItems Lists items in a player's backpack.
 // https://wiki.teamfortress.com/wiki/WebAPI/GetPlayerItems
-func GetPlayerItems(ctx context.Context, steamID steamid.SID64, appID steamid.AppID) ([]InventoryItem, int, error) {
+func GetPlayerItems(ctx context.Context, steamID steamid.SteamID, appID steamid.AppID) ([]InventoryItem, int, error) {
 	type response struct {
 		Result struct {
 			Status           int             `json:"status"`
@@ -1106,11 +1102,11 @@ func GetSupportedAPIList(ctx context.Context) ([]SupportedAPIInterfaces, error) 
 const steam64Len = 17
 
 // ResolveVanityURL Resolve vanity URL parts to a 64-bit ID.
-func ResolveVanityURL(ctx context.Context, query string) (steamid.SID64, error) {
+func ResolveVanityURL(ctx context.Context, query string) (steamid.SteamID, error) {
 	type response struct {
 		Response struct {
-			SteamID steamid.SID64 `json:"steamid"`
-			Success int           `json:"success"`
+			SteamID steamid.SteamID `json:"steamid"`
+			Success int             `json:"success"`
 		} `json:"response"`
 	}
 
@@ -1125,11 +1121,11 @@ func ResolveVanityURL(ctx context.Context, query string) (steamid.SID64, error) 
 
 		output, err := strconv.ParseInt(query[strings.Index(query, purl)+len(purl):], 10, 64)
 		if err != nil {
-			return "", errors.Wrapf(err, "Failed to parse int from query")
+			return steamid.SteamID{}, errors.Wrapf(err, "Failed to parse int from query")
 		}
 
 		if len(strconv.FormatInt(output, 10)) != steam64Len {
-			return "", errors.Wrapf(err, "Invalid string length")
+			return steamid.SteamID{}, errors.Wrapf(err, "Invalid string length")
 		}
 
 		return steamid.New(output), nil
@@ -1144,14 +1140,14 @@ func ResolveVanityURL(ctx context.Context, query string) (steamid.SID64, error) 
 
 	errResp := apiRequest(ctx, "/ISteamUser/ResolveVanityURL/v0001/", url.Values{"vanityurl": []string{query}}, &resp)
 	if errResp != nil {
-		return "", errResp
+		return steamid.SteamID{}, errResp
 	}
 
 	return resp.Response.SteamID, nil
 }
 
 // GetSteamLevel Lists all available WebAPI interfaces.
-func GetSteamLevel(ctx context.Context, sid steamid.SID64) (int, error) {
+func GetSteamLevel(ctx context.Context, sid steamid.SteamID) (int, error) {
 	type response struct {
 		Response struct {
 			// The steam level of the player.
@@ -1186,7 +1182,7 @@ type RecentGame struct {
 
 // GetRecentlyPlayedGames Lists recently played games
 // No results returned is usually due to privacy settings.
-func GetRecentlyPlayedGames(ctx context.Context, sid steamid.SID64) ([]RecentGame, error) {
+func GetRecentlyPlayedGames(ctx context.Context, sid steamid.SteamID) ([]RecentGame, error) {
 	type response struct {
 		Response struct {
 			TotalCount int          `json:"total_count"`
@@ -1239,7 +1235,7 @@ func (g OwnedGame) LogoURL() string {
 
 // GetOwnedGames Lists all owned games
 // No results returned is usually due to privacy settings.
-func GetOwnedGames(ctx context.Context, sid steamid.SID64) ([]OwnedGame, error) {
+func GetOwnedGames(ctx context.Context, sid steamid.SteamID) ([]OwnedGame, error) {
 	type response struct {
 		Response struct {
 			GameCount int         `json:"game_count"`
@@ -1293,7 +1289,7 @@ type BadgeStatus struct {
 
 // GetBadges Lists all badges for a user
 // No results returned is usually due to privacy settings.
-func GetBadges(ctx context.Context, sid steamid.SID64) (*BadgeStatus, error) {
+func GetBadges(ctx context.Context, sid steamid.SteamID) (*BadgeStatus, error) {
 	type response struct {
 		Response BadgeStatus `json:"response"`
 	}
@@ -1320,7 +1316,7 @@ type BadgeQuestStatus struct {
 
 // GetCommunityBadgeProgress Lists all badges for a user
 // No results returned is usually due to privacy settings.
-func GetCommunityBadgeProgress(ctx context.Context, sid steamid.SID64) ([]BadgeQuestStatus, error) {
+func GetCommunityBadgeProgress(ctx context.Context, sid steamid.SteamID) ([]BadgeQuestStatus, error) {
 	type response struct {
 		Response struct {
 			// Array of quests (actions required to unlock a badge)
@@ -1422,7 +1418,7 @@ var groupMemberRx = regexp.MustCompile(`<steamID64>(\d+)</steamID64>`)
 // GetGroupMembers fetches all steamids that belong to a steam group.
 // WARN: This does not use the actual steam api and instead fetches and parses the groups XML data. This endpoint
 // is far more heavily rate limited by steam.
-func GetGroupMembers(ctx context.Context, groupID steamid.GID) (steamid.Collection, error) {
+func GetGroupMembers(ctx context.Context, groupID steamid.SteamID) (steamid.Collection, error) {
 	if !groupID.Valid() {
 		return nil, errors.New("Invalid steam group ID")
 	}
@@ -1453,9 +1449,9 @@ func GetGroupMembers(ctx context.Context, groupID steamid.GID) (steamid.Collecti
 	var found steamid.Collection
 
 	for _, match := range groupMemberRx.FindAllStringSubmatch(string(body), -1) {
-		sid, errSid := steamid.StringToSID64(match[1])
-		if errSid != nil {
-			return nil, errors.Wrapf(errSid, "Found invalid ID: %s", match[1])
+		sid := steamid.New(match[1])
+		if !sid.Valid() {
+			return nil, fmt.Errorf("found invalid ID: %s", match[1])
 		}
 
 		found = append(found, sid)
