@@ -5,7 +5,7 @@ go 1.22
 toolchain go1.22.0
 
 require (
-	github.com/leighmacdonald/steamid/v4 v4.0.2
+	github.com/leighmacdonald/steamid/v4 v4.0.4
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0

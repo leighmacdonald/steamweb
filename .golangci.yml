@@ -1,8 +1,9 @@
-run:
-  skip-files:
+issues:
+  exclude-dirs:
+    - pkg/msqp
+    - pkg/mm
+  exclude-files:
     - internal/web/data.go
-    - pkg/msqp/*
-    - pkg/mm/*
 
 linters:
   # Disable all linters.
@@ -16,19 +17,19 @@ linters:
     - bidichk
     - bodyclose
     - containedctx
-    - contextcheck
+    - copyloopvar
+    #- contextcheck
     #- cyclop
     - decorder
     #- depguard
     - dogsled
     #- dupl
-    #- dupword
+    - dupword
     #- durationcheck
     - errcheck
     - errchkjson
     - errname
     - errorlint
-    - execinquery
     #- exhaustive
     #- exhaustruct
     - exportloopref
@@ -40,37 +41,44 @@ linters:
     - gocheckcompilerdirectives
     - gochecknoglobals
     #- gochecknoinits
-    - gocognit
+    #- gocognit
     - goconst
     - gocritic
     #- gocyclo
+    - gochecksumtype
+    - goconst
+    - gocritic
     - godot
     #- godox
-    - goerr113
+    - err113
     - gofmt
     - gofumpt
     - goheader
     - goimports
-    - gomnd
+    #- gomnd
     - gomoddirectives
     - gomodguard
     - goprintffuncname
     - gosec
+    - gosmopolitan
     - gosimple
     - govet
     - grouper
     - importas
+    - inamedparam
     - ineffassign
     - interfacebloat
-    - ireturn
+    - intrange
+    #- ireturn
     #- lll
     - loggercheck
     - maintidx
     - makezero
+    - mirror
     - misspell
     - musttag
     - nakedret
-    - nestif
+    #- nestif
     - nilerr
     - nilnil
     - nlreturn
@@ -78,22 +86,27 @@ linters:
     #- nolintlint
     - nonamedreturns
     - nosprintfhostport
-    - paralleltest
+    #- paralleltest
+    #- perfsprint
     - prealloc
     - predeclared
-    #- promlinter
+    - promlinter
     - reassign
-    #- revive
+    - revive
     - rowserrcheck
     - sqlclosecheck
+    - sloglint
+    - spancheck
     #- staticcheck
     - stylecheck
+    #- tagalign
     #- tagliatelle
     - tenv
     - testableexamples
+    - testifylint
     - testpackage
     - thelper
-    - tparallel
+    #- tparallel
     - typecheck
     - unconvert
     - unparam
@@ -103,36 +116,69 @@ linters:
     - wastedassign
     - whitespace
     - wrapcheck
-    - wsl
-    #- zerologlint
-  # Disable specific linter
-  # https://golangci-lint.run/usage/linters/#disabled-by-default
-  #disable:
-  #  - staticcheck
-  # Enable presets.
-  # https://golangci-lint.run/usage/linters
-#  presets:
-#    - bugs
-#    #- comment
-#    - complexity
-#    #- error
-#    - format
-#    - import
-#    - metalinter
-#    - module
-#    #- performance
-#    - sql
-#    #- style
-#    #- test
-#    #- unused
+    #- wsl
 
 linters-settings:
+  wrapcheck:
+    # An array of strings that specify substrings of signatures to ignore.
+    # If this set, it will override the default set of ignored signatures.
+    # See https://github.com/tomarrell/wrapcheck#configuration for more information.
+    # Default: [".Errorf(", "errors.New(", "errors.Unwrap(", "errors.Join(", ".Wrap(", ".Wrapf(", ".WithMessage(", ".WithMessagef(", ".WithStack("]
+    ignoreSigs:
+      - .Errorf(
+      - errors.New(
+      - errors.Unwrap(
+      - errors.Join(
+      - .Wrap(
+      - .Wrapf(
+      - .WithMessage(
+      - .WithMessagef(
+      - .WithStack(
+    # An array of strings that specify regular expressions of signatures to ignore.
+    # Default: []
+    #ignoreSigRegexps:
+    #  - \.New.*Error\(
+    # An array of strings that specify globs of packages to ignore.
+    # Default: []
+    ignorePackageGlobs:
+    #  - encoding/*
+      - github.com/leighmacdonald/gbans/pkg/*
+      - github.com/leighmacdonald/gbans/internal/*
+    # An array of strings that specify regular expressions of interfaces to ignore.
+    # Default: []
+    #ignoreInterfaceRegexps:
+    #  - ^(?i)c(?-i)ach(ing|e)
+  interfacebloat:
+    max: 26
   tagliatelle:
     case:
       use-field-name: true
       rules:
         json: snake
         yaml: snake
+  depguard:
+    # Rules to apply.
+    #
+    # Variables:
+    # - File Variables
+    #   you can still use and exclamation mark ! in front of a variable to say not to use it.
+    #   Example !$test will match any file that is not a go test file.
+    #
+    #   `$all` - matches all go files
+    #   `$test` - matches all go test files
+    #
+    # - Package Variables
+    #
+    #  `$gostd` - matches all of go's standard library (Pulled from `GOROOT`)
+    #
+    # Default: Only allow $gostd in all files.
+    rules:
+      errors:
+        deny:
+          - pkg: "github.com/pkg/errors"
+            desc: Should be replaced by standard lib errors package
+          - pkg: "go.uber.org/zap"
+            desc: Replaced with log/slog
   funlen:
     # Checks the number of lines in a function.
     # If lower than 0, disable the check.

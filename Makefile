@@ -14,7 +14,7 @@ static:
 	@staticcheck -go 1.20 ./...
 
 check_deps:
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.3
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.1
 	go install github.com/daixiang0/gci@latest
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 

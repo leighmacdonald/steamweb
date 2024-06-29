@@ -30,16 +30,12 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetAppList(t *testing.T) {
-	t.Parallel()
-
 	apps, err := steamweb.GetAppList(context.Background())
 	require.NoError(t, err)
-	require.True(t, len(apps) > 5000)
+	require.Greater(t, len(apps), 5000)
 }
 
 func TestPlayerSummaries(t *testing.T) {
-	t.Parallel()
-
 	ids := steamid.Collection{steamid.New(76561198132612090), testIDSquirrelly, steamid.New(76561197960435530)}
 	p, err := steamweb.PlayerSummaries(context.Background(), ids)
 	require.NoError(t, err)
@@ -47,24 +43,18 @@ func TestPlayerSummaries(t *testing.T) {
 }
 
 func TestGetUserGroupList(t *testing.T) {
-	t.Parallel()
-
 	groupIDs, err := steamweb.GetUserGroupList(context.Background(), testIDSquirrelly)
 	require.NoError(t, err)
-	require.True(t, len(groupIDs) > 5)
+	require.Greater(t, len(groupIDs), 5)
 }
 
 func TestGetFriendList(t *testing.T) {
-	t.Parallel()
-
 	friends, err := steamweb.GetFriendList(context.Background(), steamid.New(76561198132612090))
 	require.NoError(t, err)
-	require.True(t, len(friends) > 10)
+	require.Greater(t, len(friends), 10)
 }
 
 func TestGetPlayerBans(t *testing.T) {
-	t.Parallel()
-
 	ids := steamid.Collection{steamid.New(76561198132612090), testIDSquirrelly, steamid.New(76561197960435530)}
 	bans, err := steamweb.GetPlayerBans(context.Background(), ids)
 	require.NoError(t, err)
@@ -72,24 +62,18 @@ func TestGetPlayerBans(t *testing.T) {
 }
 
 func TestGetServersAtAddress(t *testing.T) {
-	t.Parallel()
-
 	servers, err := steamweb.GetServersAtAddress(context.Background(), net.ParseIP("51.222.245.142"))
 	require.NoError(t, err)
-	require.True(t, len(servers) > 0)
+	require.Positive(t, len(servers))
 }
 
 func TestGetServerList(t *testing.T) {
-	t.Parallel()
-
 	servers, err := steamweb.GetServerList(context.Background(), map[string]string{"appid": "440"})
 	require.NoError(t, err)
-	require.True(t, len(servers) > 0)
+	require.Positive(t, len(servers))
 }
 
 func TestUpToDateCheck(t *testing.T) {
-	t.Parallel()
-
 	respOld, err := steamweb.UpToDateCheck(context.Background(), 440, 100)
 	require.NoError(t, err)
 	require.True(t, respOld.Success)
@@ -102,11 +86,9 @@ func TestUpToDateCheck(t *testing.T) {
 }
 
 func TestGetNewsForApp(t *testing.T) {
-	t.Parallel()
-
 	newsItems, err := steamweb.GetNewsForApp(context.Background(), 440, nil)
 	require.NoError(t, err)
-	require.True(t, len(newsItems) > 1)
+	require.Greater(t, len(newsItems), 1)
 
 	opts := &steamweb.GetNewsForAppOptions{
 		Count: 10,
@@ -114,24 +96,20 @@ func TestGetNewsForApp(t *testing.T) {
 
 	newsItemsCount, err2 := steamweb.GetNewsForApp(context.Background(), 440, opts)
 	require.NoError(t, err2)
-	require.Equal(t, int(opts.Count), len(newsItemsCount))
+	require.Len(t, newsItemsCount, int(opts.Count))
 }
 
 func TestGetNumberOfCurrentPlayers(t *testing.T) {
-	t.Parallel()
-
 	players, err := steamweb.GetNumberOfCurrentPlayers(context.Background(), 440)
 	require.NoError(t, err)
 	require.Greater(t, players, 2000)
 }
 
 func TestGetUserStatsForGame(t *testing.T) {
-	t.Parallel()
-
 	s, err := steamweb.GetUserStatsForGame(context.Background(), testIDSquirrelly, 440)
 	require.NoError(t, err)
-	require.True(t, len(s.Stats) > 0)
-	require.True(t, len(s.Achievements) > 0)
+	require.Positive(t, len(s.Stats))
+	require.Positive(t, len(s.Achievements))
 	require.Equal(t, "Team Fortress 2", s.GameName)
 
 	_, err2 := steamweb.GetUserStatsForGame(context.Background(), steamid.New(76561198084134025), 440)
@@ -139,8 +117,6 @@ func TestGetUserStatsForGame(t *testing.T) {
 }
 
 func TestGetPlayerItems(t *testing.T) {
-	t.Parallel()
-
 	_, backpackSlots, err := steamweb.GetPlayerItems(context.Background(), testIDSquirrelly, 440)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -149,12 +125,10 @@ func TestGetPlayerItems(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	require.True(t, backpackSlots > 0)
+	require.Positive(t, backpackSlots)
 }
 
 func TestGetSchemaOverview(t *testing.T) {
-	t.Parallel()
-
 	schemaOverview, err := steamweb.GetSchemaOverview(context.Background(), 440)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -163,12 +137,10 @@ func TestGetSchemaOverview(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	require.True(t, len(schemaOverview.ItemLevels) > 0)
+	require.Positive(t, len(schemaOverview.ItemLevels))
 }
 
 func TestGetSchemaItems(t *testing.T) {
-	t.Parallel()
-
 	items, err := steamweb.GetSchemaItems(context.Background(), 440)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -181,8 +153,6 @@ func TestGetSchemaItems(t *testing.T) {
 }
 
 func TestGetSchemaURL(t *testing.T) {
-	t.Parallel()
-
 	schemaURL, err := steamweb.GetSchemaURL(context.Background(), 440)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -191,12 +161,10 @@ func TestGetSchemaURL(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	require.True(t, len(schemaURL) > 50)
+	require.Greater(t, len(schemaURL), 50)
 }
 
 func TestGetStoreMetaData(t *testing.T) {
-	t.Parallel()
-
 	storeMetaData, err := steamweb.GetStoreMetaData(context.Background(), 440)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -205,12 +173,10 @@ func TestGetStoreMetaData(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	require.Equal(t, 9, len(storeMetaData.PlayerClassData))
+	require.Len(t, storeMetaData.PlayerClassData, 9)
 }
 
 func TestGetSupportedAPIList(t *testing.T) {
-	t.Parallel()
-
 	apiList, err := steamweb.GetSupportedAPIList(context.Background())
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -219,12 +185,10 @@ func TestGetSupportedAPIList(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	require.True(t, len(apiList) > 10)
+	require.Greater(t, len(apiList), 10)
 }
 
 func TestResolveVanityURL(t *testing.T) {
-	t.Parallel()
-
 	queries := []string{
 		"SQUIRRELLY",
 		"  SQUIRRELLY   ",
@@ -245,8 +209,6 @@ func TestResolveVanityURL(t *testing.T) {
 }
 
 func TestGetSteamLevel(t *testing.T) {
-	t.Parallel()
-
 	steamLevel, err := steamweb.GetSteamLevel(context.Background(), testIDSquirrelly)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -255,12 +217,10 @@ func TestGetSteamLevel(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	require.True(t, steamLevel >= 47)
+	require.GreaterOrEqual(t, steamLevel, 47)
 }
 
 func TestGetRecentlyPlayedGames(t *testing.T) {
-	t.Parallel()
-
 	recentlyPlayedGames, err := steamweb.GetRecentlyPlayedGames(context.Background(), testIDMurph)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -269,12 +229,10 @@ func TestGetRecentlyPlayedGames(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	require.True(t, len(recentlyPlayedGames) > 0)
+	require.Positive(t, len(recentlyPlayedGames))
 }
 
 func TestGetOwnedGames(t *testing.T) {
-	t.Parallel()
-
 	ownedGames, err := steamweb.GetOwnedGames(context.Background(), testIDSquirrelly)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -283,12 +241,10 @@ func TestGetOwnedGames(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	require.True(t, len(ownedGames) > 0)
+	require.Positive(t, len(ownedGames))
 }
 
 func TestGetBadges(t *testing.T) {
-	t.Parallel()
-
 	badges, err := steamweb.GetBadges(context.Background(), testIDDane)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -298,12 +254,10 @@ func TestGetBadges(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, badges)
-	require.True(t, len(badges.Badges) > 0)
+	require.Positive(t, len(badges.Badges))
 }
 
 func TestGetCommunityBadgeProgress(t *testing.T) {
-	t.Parallel()
-
 	badgeProgress, err := steamweb.GetCommunityBadgeProgress(context.Background(), testIDDane)
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -315,13 +269,11 @@ func TestGetCommunityBadgeProgress(t *testing.T) {
 
 	// Very flaky test?
 	if badgeProgress != nil {
-		require.True(t, len(badgeProgress) > 0)
+		require.Positive(t, len(badgeProgress))
 	}
 }
 
 func TestGetAssetClassInfo(t *testing.T) {
-	t.Parallel()
-
 	assetClassInfo, err := steamweb.GetAssetClassInfo(context.Background(), testAppTF2, []int{195151, 16891096})
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")
@@ -334,8 +286,6 @@ func TestGetAssetClassInfo(t *testing.T) {
 }
 
 func TestGetGroupMembers(t *testing.T) {
-	t.Parallel()
-
 	groupMembers, err := steamweb.GetGroupMembers(context.TODO(), steamid.New(103582791429521412))
 	if err != nil && errors.Is(err, steamweb.ErrServiceUnavailable) {
 		t.Skipf("Service not available currently")

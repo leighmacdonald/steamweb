@@ -33,7 +33,7 @@ import (
 const (
 	baseURL               = "https://api.steampowered.com%s?"
 	defaultRequestTimeout = time.Second * 20
-	maxSteamIdsPerRequest = 100
+	maxSteamIDsPerRequest = 100
 )
 
 var (
@@ -157,7 +157,12 @@ func apiRequest(ctx context.Context, path string, values url.Values, target any)
 		_ = resp.Body.Close()
 	}()
 
-	if errU := json.NewDecoder(resp.Body).Decode(&target); errU != nil {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errors.Wrap(err, "Failed to read body")
+	}
+
+	if errU := json.Unmarshal(body, &target); errU != nil {
 		return errors.Wrap(errU, "Failed to decode JSON response")
 	}
 
@@ -260,7 +265,7 @@ func PlayerSummaries(ctx context.Context, steamIDs steamid.Collection) ([]Player
 		return nil, errors.New("Too few steam ids, min 1")
 	}
 
-	if len(steamIDs) > maxSteamIdsPerRequest {
+	if len(steamIDs) > maxSteamIDsPerRequest {
 		return nil, errors.New("Too many steam ids, max 100")
 	}
 
@@ -310,7 +315,7 @@ func GetPlayerBans(ctx context.Context, steamIDs steamid.Collection) ([]PlayerBa
 		return nil, errors.New("Too few steam ids, min 1")
 	}
 
-	if len(steamIDs) > maxSteamIdsPerRequest {
+	if len(steamIDs) > maxSteamIDsPerRequest {
 		return nil, errors.New("Too many steam ids, max 100")
 	}
 
@@ -954,8 +959,8 @@ type Sorters struct {
 	LocalizedText string `json:"localized_text"`
 }
 
-// SorterIds base id for tracking sorting.
-type SorterIds struct {
+// SorterIDs base id for tracking sorting.
+type SorterIDs struct {
 	ID int64 `json:"id"`
 }
 
@@ -964,7 +969,7 @@ type SortingPrefabs struct {
 	ID                  int64       `json:"id"`
 	Name                string      `json:"name"`
 	URLHistoryParamName string      `json:"url_history_param_name"`
-	SorterIds           []SorterIds `json:"sorter_ids"`
+	SorterIDs           []SorterIDs `json:"sorter_ids"`
 }
 
 // Sorting defines current sorting.
@@ -1133,6 +1138,7 @@ func ResolveVanityURL(ctx context.Context, query string) (steamid.SteamID, error
 		if string(query[len(query)-1]) == "/" {
 			query = query[0 : len(query)-1]
 		}
+
 		query = query[strings.Index(query, "steamcommunity.com/id/")+len("steamcommunity.com/id/"):]
 	}
 
@@ -1355,7 +1361,7 @@ type Asset struct {
 }
 
 // GetAssetClassInfo gets info on items/assets.
-func GetAssetClassInfo(ctx context.Context, appID steamid.AppID, classIds []int) ([]Asset, error) {
+func GetAssetClassInfo(ctx context.Context, appID steamid.AppID, classIDs []int) ([]Asset, error) {
 	type response struct {
 		Result map[string]any `json:"result"`
 	}
@@ -1367,12 +1373,12 @@ func GetAssetClassInfo(ctx context.Context, appID steamid.AppID, classIds []int)
 		// the English string will be returned instead. If this parameter is omitted the string token will
 		// be returned for the strings.
 		"language":    []string{lang},
-		"class_count": []string{fmt.Sprintf("%d", len(classIds))},
+		"class_count": []string{fmt.Sprintf("%d", len(classIDs))},
 	}
 
-	for i := 0; i < len(classIds); i++ {
+	for i := range len(classIDs) {
 		// values.Set(fmt.Sprintf("class_name%d", i), "x")
-		values.Set(fmt.Sprintf("classid%d", i), fmt.Sprintf("%d", classIds[i]))
+		values.Set(fmt.Sprintf("classid%d", i), fmt.Sprintf("%d", classIDs[i]))
 	}
 
 	var resp response
@@ -1413,7 +1419,10 @@ func GetAssetClassInfo(ctx context.Context, appID steamid.AppID, classIds []int)
 	return assets, nil
 }
 
-var groupMemberRx = regexp.MustCompile(`<steamID64>(\d+)</steamID64>`)
+var (
+	groupMemberRx = regexp.MustCompile(`<steamID64>(\d+)</steamID64>`)
+	errInvalidID  = errors.New("got invalid id")
+)
 
 // GetGroupMembers fetches all steamids that belong to a steam group.
 // WARN: This does not use the actual steam api and instead fetches and parses the groups XML data. This endpoint
@@ -1451,7 +1460,7 @@ func GetGroupMembers(ctx context.Context, groupID steamid.SteamID) (steamid.Coll
 	for _, match := range groupMemberRx.FindAllStringSubmatch(string(body), -1) {
 		sid := steamid.New(match[1])
 		if !sid.Valid() {
-			return nil, fmt.Errorf("found invalid ID: %s", match[1])
+			return nil, fmt.Errorf("%w: %s", errInvalidID, match[1])
 		}
 
 		found = append(found, sid)
