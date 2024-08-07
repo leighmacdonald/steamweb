@@ -36,28 +36,40 @@ const (
 	maxSteamIDsPerRequest = 100
 )
 
+type HTTPClientHandler interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 var (
 	// ErrInvalidResponse is Returned when a non 200 response occurs.
 	ErrInvalidResponse = errors.New("Invalid response")
 	// ErrServiceUnavailable is returned when the steam api is down / not available for some reason / it's tuesday.
 	ErrServiceUnavailable = errors.New("Service Unavailable")
+	ErrServiceRateLimit   = errors.New("Rate limited")
 	// ErrNoAPIKey is returned for functions that require an API key to use when one has not been set.
 	ErrNoAPIKey = errors.New("No steam web api key, to obtain one see: " +
 		"https://steamcommunity.com/dev/apikey and call SetKey()")
-	apiKey     = ""                                           //nolint:gochecknoglobals
-	lang       = "en_US"                                      //nolint:gochecknoglobals
-	cfgMu      = &sync.RWMutex{}                              //nolint:gochecknoglobals
-	httpClient = &http.Client{Timeout: defaultRequestTimeout} //nolint:gochecknoglobals
+	apiKey     = ""              //nolint:gochecknoglobals
+	lang       = "en_US"         //nolint:gochecknoglobals
+	cfgMu      sync.RWMutex      //nolint:gochecknoglobals
+	httpClient HTTPClientHandler //nolint:gochecknoglobals
 
 )
 
 func init() {
+	httpClient = &http.Client{Timeout: defaultRequestTimeout}
+
 	v, found := os.LookupEnv("STEAM_TOKEN")
 	if found && v != "" {
 		if err := SetKey(v); err != nil {
 			log.Printf("Invalid steamid set from STEAM_TOKEN env: %v\n", err)
 		}
 	}
+}
+
+// SetHTTPClient replaces the default internal *http.Client with your own.
+func SetHTTPClient(h HTTPClientHandler) {
+	httpClient = h
 }
 
 // SetKey will set the package level steam webapi key used for requests
@@ -157,18 +169,17 @@ func apiRequest(ctx context.Context, path string, values url.Values, target any)
 		_ = resp.Body.Close()
 	}()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return errors.Wrap(err, "Failed to read body")
-	}
-
-	if errU := json.Unmarshal(body, &target); errU != nil {
+	if errU := json.NewDecoder(resp.Body).Decode(&target); errU != nil {
 		return errors.Wrap(errU, "Failed to decode JSON response")
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusServiceUnavailable {
 			return ErrServiceUnavailable
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			return ErrServiceRateLimit
 		}
 
 		return errors.Errorf("Invalid status code received: %d", resp.StatusCode)
